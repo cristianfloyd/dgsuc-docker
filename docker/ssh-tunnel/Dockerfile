@@ -11,8 +11,8 @@ RUN mkdir -p /root/.ssh && \
     chmod 700 /root/.ssh
 
 # Copy entrypoint script
-COPY docker/ssh-tunnel/entrypoint.sh /entrypoint.sh
-COPY docker/ssh-tunnel/healthcheck.sh /healthcheck.sh
+COPY entrypoint.sh /entrypoint.sh
+COPY healthcheck.sh /healthcheck.sh
 RUN chmod +x /entrypoint.sh /healthcheck.sh
 
 # SSH config

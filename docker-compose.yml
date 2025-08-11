@@ -1,5 +1,3 @@
-version: '3.8'
-
 x-common-variables: &common-variables
   TZ: America/Argentina/Buenos_Aires
   APP_NAME: ${APP_NAME:-Sistema DGSUC}
@@ -33,6 +31,8 @@ volumes:
   backup_data:
     driver: local
   certbot_logs:
+    driver: local
+  nginx_logs:
     driver: local
 
 services:

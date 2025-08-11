@@ -21,6 +21,7 @@ docker/nginx/certs/*.csr
 # SSH Keys
 *.pem
 *.key
+*.key.pub
 *.p12
 id_rsa*
 known_hosts
