@@ -188,6 +188,14 @@ health: ## Health check all services
 	@echo "Checking service health..."
 	@docker-compose ps | grep -E "Up|healthy" || echo "Some services are down!"
 
+validate: ## Validate Docker Compose configuration
+	@echo "Validating configuration..."
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		powershell -ExecutionPolicy Bypass -File scripts/validate-config.ps1; \
+	else \
+		./scripts/validate-config.sh; \
+	fi
+
 # Installation
 install: ## Initial installation
 	@echo "Installing DGSUC Docker Environment..."

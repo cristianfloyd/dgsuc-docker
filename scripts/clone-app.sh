@@ -2,7 +2,7 @@
 set -e
 
 # Configuration
-REPO_URL=${1:-"https://github.com/uba/dgsuc-sistema.git"}
+REPO_URL=${1:-"https://github.com/cristianfloyd/informes-app.git"}
 BRANCH=${2:-"main"}
 APP_DIR="./app"
 

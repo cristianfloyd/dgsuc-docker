@@ -36,7 +36,8 @@ RUN docker-php-ext-configure gd \
         bcmath \
         opcache \
         pcntl \
-        sockets
+        sockets \
+        exif
 
 # Install Redis extension
 RUN pecl install redis && \

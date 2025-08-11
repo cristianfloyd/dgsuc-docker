@@ -4,6 +4,13 @@ x-common-variables: &common-variables
   APP_ENV: ${APP_ENV:-production}
   APP_DEBUG: ${APP_DEBUG:-false}
   APP_URL: ${APP_URL:-https://dgsuc.uba.ar}
+  LOG_CHANNEL: ${LOG_CHANNEL:-stack}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  BROADCAST_DRIVER: ${BROADCAST_DRIVER:-log}
+  CACHE_DRIVER: ${CACHE_DRIVER:-redis}
+  SESSION_DRIVER: ${SESSION_DRIVER:-redis}
+  SESSION_LIFETIME: ${SESSION_LIFETIME:-120}
+  QUEUE_CONNECTION: ${QUEUE_CONNECTION:-redis}
 
 x-app-volumes: &app-volumes
   - ./app:/var/www/html
@@ -149,9 +156,9 @@ services:
       - dgsuc_network
     ports:
       - "${REDIS_EXTERNAL_PORT:-6379}:6379"
-    command: redis-server /usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+--a ${REDIS_PASSWORD}} ping"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -175,7 +182,7 @@ services:
     volumes:
       - ~/.ssh:/root/.ssh:ro
       - ./docker/ssh-tunnel/config:/etc/ssh-tunnel:ro
-      - ${SSH_KEYS_PATH:-~/.ssh}:/etc/ssh-keys:ro
+      - ${SSH_KEYS_PATH:-./ssh-keys}:/etc/ssh-keys:ro
     networks:
       - dgsuc_network
     healthcheck:
@@ -243,8 +250,10 @@ services:
         certbot certonly --webroot --webroot-path=/var/www/html
         --email $${CERTBOT_EMAIL} --agree-tos --no-eff-email
         -d $${CERTBOT_DOMAIN} -d www.$${CERTBOT_DOMAIN}
-        --keep-until-expiring --non-interactive
+        --keep-until-expiring --non-interactive --staging
       "
     depends_on:
       - nginx
     restart: "no"
+    profiles:
+      - ssl
