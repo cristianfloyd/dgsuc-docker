@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      target: development
+    environment:
+      APP_ENV: local
+      APP_DEBUG: true
+      XDEBUG_MODE: develop,debug
+      XDEBUG_CONFIG: client_host=host.docker.internal
+      XDEBUG_SESSION: 1
+    volumes:
+      - ./:/var/www/html
+      - ~/.composer:/home/informes/.composer
+    ports:
+      - "9003:9003"  # Xdebug port
+    command: php-fpm -F
+
+  nginx:
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx/sites/default.conf:/etc/nginx/sites-enabled/default:ro
+
+  postgres:
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: informes_app_dev
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./docker/postgres/init-dev.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  redis:
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+
+  # Development tools
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: dgsuc_mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - dgsuc_network
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: dgsuc_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: postgres
+      PMA_PORT: 5432
+      PMA_USER: ${DB_USERNAME:-informes_user}
+      PMA_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "8090:80"
+    networks:
+      - dgsuc_network
+    depends_on:
+      - postgres
+
+  # Node.js for asset compilation
+  node:
+    image: node:18-alpine
+    container_name: dgsuc_node
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    networks:
+      - dgsuc_network
+    command: sh -c "npm install && npm run dev"
+
+volumes:
+  postgres_data_dev:
+    driver: local

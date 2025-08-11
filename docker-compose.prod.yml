@@ -1,0 +1,143 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      target: production
+    environment:
+      APP_ENV: production
+      APP_DEBUG: false
+      # Microsoft Azure AD (SSO UBA)
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET}
+      MICROSOFT_REDIRECT_URI: https://dgsuc.uba.ar/auth/microsoft/callback
+    volumes:
+      - ./storage:/var/www/html/storage
+      - ./bootstrap/cache:/var/www/html/bootstrap/cache
+      - php_sessions:/var/www/html/storage/framework/sessions
+      - php_cache:/var/www/html/storage/framework/cache
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./public:/var/www/html/public:ro
+      - ./docker/nginx/sites/default-ssl.conf:/etc/nginx/sites-enabled/default:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - nginx_logs:/var/log/nginx
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  postgres:
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - backup_data:/backups
+      - ./docker/postgres/postgresql-prod.conf:/etc/postgresql/postgresql.conf:ro
+    ports: []  # No external ports in production
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+
+  redis:
+    ports: []  # No external ports in production
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+
+  workers:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    environment:
+      WORKER_PROCESSES: 6
+      WORKER_MEMORY: 4096
+      WORKER_TIMEOUT: 3600
+
+  # Production-only: Backup service
+  backup:
+    image: postgres:17-alpine
+    container_name: dgsuc_backup
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${DB_PASSWORD}
+    volumes:
+      - backup_data:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    networks:
+      - dgsuc_network
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "while true; do
+        /backup.sh
+        sleep 86400
+      done"
+
+  # Production-only: Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: dgsuc_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./docker/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - dgsuc_network
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: dgsuc_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    networks:
+      - dgsuc_network
+    ports:
+      - "3000:3000"
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local

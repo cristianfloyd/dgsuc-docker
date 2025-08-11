@@ -1,0 +1,51 @@
+# Application directory (will be cloned)
+/app/
+
+# Environment files
+.env
+.env.dev
+.env.prod
+.env.secrets
+.env.local
+.env.production
+.env.staging
+*.env
+
+# SSL Certificates
+docker/nginx/certs/*.pem
+docker/nginx/certs/*.crt
+docker/nginx/certs/*.key
+docker/nginx/certs/*.csr
+!docker/nginx/certs/.gitkeep
+
+# SSH Keys
+*.pem
+*.key
+*.p12
+id_rsa*
+known_hosts
+
+# Logs
+*.log
+logs/
+docker/nginx/logs/
+
+# Backups
+backups/
+*.sql
+*.tar.gz
+*.zip
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker volumes data (if mounted locally)
+volumes/
+data/
+
+# Temporary files
