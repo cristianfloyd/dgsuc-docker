@@ -167,14 +167,15 @@ services:
     container_name: dgsuc_ssh_tunnel
     restart: unless-stopped
     environment:
-      SSH_KEY_CONTENT: ${MAPUCHE_SSH_PRIVATE_KEY}
       SSH_HOST: ${MAPUCHE_SSH_HOST}
       SSH_PORT: ${MAPUCHE_SSH_PORT:-22}
       SSH_USER: ${MAPUCHE_SSH_USER}
       LOCAL_FORWARD_PORTS: ${SSH_TUNNEL_PORTS:-5433:localhost:5432,5434:localhost:5432}
+      SSH_PRIVATE_KEY_PATH: /etc/ssh-keys/mapuchedbprod.key
     volumes:
       - ~/.ssh:/root/.ssh:ro
       - ./docker/ssh-tunnel/config:/etc/ssh-tunnel:ro
+      - ${SSH_KEYS_PATH:-~/.ssh}:/etc/ssh-keys:ro
     networks:
       - dgsuc_network
     healthcheck:

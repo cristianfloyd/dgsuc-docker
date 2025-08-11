@@ -257,13 +257,17 @@ if [[ ! $INIT_DB =~ ^[Nn]$ ]]; then
     sleep 10
     
     log_step "Creating database schemas..."
-    docker-compose exec -T postgres psql -U postgres << EOF
-CREATE DATABASE IF NOT EXISTS informes_app;
-\c informes_app;
+    # Check if database is already initialized
+    if docker-compose exec -T postgres psql -U informes_user -d informes_app -c "SELECT 1;" > /dev/null 2>&1; then
+        log_info "Database already initialized and accessible"
+    else
+        # If not accessible, try with environment variables
+        docker-compose exec -T -e PGPASSWORD="${DB_PASSWORD}" postgres psql -U informes_user -d informes_app << EOF
 CREATE SCHEMA IF NOT EXISTS suc_app;
 CREATE SCHEMA IF NOT EXISTS informes_app;
 ALTER DATABASE informes_app SET search_path = 'suc_app,informes_app,public';
 EOF
+    fi
     
     log_info "Database initialized"
 fi

@@ -44,8 +44,8 @@ RUN addgroup -g 1000 -S informes && \
     adduser -u 1000 -S informes -G informes
 
 # Copy supervisor configuration
-COPY docker/workers/worker-supervisor.conf /etc/supervisor/conf.d/supervisord.conf
-COPY docker/workers/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY worker.conf /etc/supervisor/conf.d/supervisord.conf
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Set working directory

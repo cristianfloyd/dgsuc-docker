@@ -53,7 +53,7 @@ RUN addgroup -g 1000 -S informes && \
 FROM base AS production
 
 # Copy PHP configuration
-COPY docker/app/php.ini /usr/local/etc/php/conf.d/app.ini
+COPY php.ini /usr/local/etc/php/conf.d/app.ini
 
 # Set working directory
 WORKDIR /var/www/html
@@ -78,7 +78,7 @@ RUN chown -R informes:informes /var/www/html && \
     chmod -R 775 /var/www/html/bootstrap/cache
 
 # Copy entrypoint
-COPY docker/app/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 USER informes
@@ -90,7 +90,7 @@ CMD ["php-fpm"]
 FROM base AS development
 
 # Copy PHP development configuration
-COPY docker/app/php-dev.ini /usr/local/etc/php/conf.d/app.ini
+COPY php-dev.ini /usr/local/etc/php/conf.d/app.ini
 
 # Install development tools
 RUN apk add --no-cache \

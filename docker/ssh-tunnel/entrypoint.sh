@@ -5,7 +5,7 @@ set -e
 SSH_HOST=${SSH_HOST:-localhost}
 SSH_PORT=${SSH_PORT:-22}
 SSH_USER=${SSH_USER:-root}
-SSH_KEY=${SSH_KEY:-/root/.ssh/id_rsa}
+SSH_KEY=${SSH_PRIVATE_KEY_PATH:-/root/.ssh/id_rsa}
 
 # Parse tunnel configuration
 # Format: LOCAL_PORT:REMOTE_HOST:REMOTE_PORT,LOCAL_PORT2:REMOTE_HOST2:REMOTE_PORT2
