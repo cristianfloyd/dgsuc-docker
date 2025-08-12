@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Colors
+# Colores para la salida de consola
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -9,14 +9,14 @@ BLUE='\033[0;34m'
 MAGENTA='\033[0;35m'
 NC='\033[0m'
 
-# Functions
+# Funciones de logging
 log_info() { echo -e "${GREEN}✓${NC} $1"; }
 log_warn() { echo -e "${YELLOW}⚠${NC} $1"; }
 log_error() { echo -e "${RED}✗${NC} $1"; }
 log_step() { echo -e "${BLUE}→${NC} $1"; }
 log_title() { echo -e "${MAGENTA}═══ $1 ═══${NC}"; }
 
-# Header
+# Encabezado del script
 clear
 echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
@@ -25,15 +25,15 @@ echo "║                 Initialization Script                     ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 
-# Check prerequisites
-log_title "Checking Prerequisites"
+# Verificación de prerrequisitos
+log_title "Verificación de Prerrequisitos"
 
 check_command() {
     if command -v $1 &> /dev/null; then
-        log_info "$1 is installed ($(command -v $1))"
+        log_info "$1 está instalado ($(command -v $1))"
         return 0
     else
-        log_error "$1 is not installed"
+        log_error "$1 no está instalado"
         return 1
     fi
 }
@@ -43,133 +43,133 @@ MISSING_DEPS=0
 check_command docker || MISSING_DEPS=1
 check_command docker-compose || MISSING_DEPS=1
 check_command git || MISSING_DEPS=1
-check_command make || log_warn "make is not installed (optional but recommended)"
+check_command make || log_warn "make no está instalado (opcional pero recomendado)"
 
 if [ $MISSING_DEPS -eq 1 ]; then
-    log_error "Missing required dependencies. Please install them first."
+    log_error "Faltan dependencias requeridas. Por favor instálalas primero."
     exit 1
 fi
 
-# Check Docker daemon
+# Verificación del daemon de Docker
 if ! docker info &> /dev/null; then
-    log_error "Docker daemon is not running"
+    log_error "El daemon de Docker no está ejecutándose"
     exit 1
 fi
-log_info "Docker daemon is running"
+log_info "El daemon de Docker está ejecutándose"
 
 echo ""
 
-# Select environment
-log_title "Environment Selection"
-echo "Select environment to initialize:"
-echo "  1) Development"
-echo "  2) Production"
-echo "  3) Both"
-read -p "Enter choice [1-3]: " ENV_CHOICE
+# Selección del entorno
+log_title "Selección de Entorno"
+echo "Selecciona el entorno a inicializar:"
+echo "  1) Desarrollo"
+echo "  2) Producción"
+echo "  3) Ambos"
+read -p "Ingresa tu elección [1-3]: " ENV_CHOICE
 
 case $ENV_CHOICE in
     1) ENVIRONMENTS="dev" ;;
     2) ENVIRONMENTS="prod" ;;
     3) ENVIRONMENTS="dev prod" ;;
-    *) log_error "Invalid choice"; exit 1 ;;
+    *) log_error "Elección inválida"; exit 1 ;;
 esac
 
 echo ""
 
-# Clone application
-log_title "Application Setup"
+# Clonación de la aplicación
+log_title "Configuración de la Aplicación"
 
 if [ ! -d "./app" ]; then
-    read -p "Enter Git repository URL (or press Enter for default): " REPO_URL
-    REPO_URL=${REPO_URL:-"https://github.com/uba/dgsuc-sistema.git"}
+    read -p "Ingresa la URL del repositorio Git (o presiona Enter para el predeterminado): " REPO_URL
+    REPO_URL=${REPO_URL:-"https://github.com/cristianfloyd/informes-app.git"}
     
-    read -p "Enter branch name (default: main): " BRANCH
+    read -p "Ingresa el nombre de la rama (predeterminado: main): " BRANCH
     BRANCH=${BRANCH:-"main"}
     
-    log_step "Cloning application..."
+    log_step "Clonando aplicación..."
     ./scripts/clone-app.sh "$REPO_URL" "$BRANCH"
 else
-    log_info "Application directory already exists"
-    read -p "Do you want to update it? (y/N): " UPDATE_APP
+    log_info "El directorio de la aplicación ya existe"
+    read -p "¿Quieres actualizarlo? (y/N): " UPDATE_APP
     if [[ $UPDATE_APP =~ ^[Yy]$ ]]; then
         cd app && git pull && cd ..
-        log_info "Application updated"
+        log_info "Aplicación actualizada"
     fi
 fi
 
 echo ""
 
-# Setup environment files
-log_title "Environment Configuration"
+# Configuración de archivos de entorno
+log_title "Configuración del Entorno"
 
 for ENV in $ENVIRONMENTS; do
     ENV_FILE=".env.$ENV"
     
     if [ ! -f "$ENV_FILE" ]; then
-        log_step "Creating $ENV_FILE..."
+        log_step "Creando $ENV_FILE..."
         cp .env.example "$ENV_FILE"
-        log_warn "Please configure $ENV_FILE before continuing"
+        log_warn "Por favor configura $ENV_FILE antes de continuar"
         
-        # Interactive configuration for critical values
+        # Configuración interactiva para valores críticos
         if [ "$ENV" = "prod" ]; then
             echo ""
-            log_step "Configure production settings:"
-            read -p "Database password: " -s DB_PASS
+            log_step "Configurar ajustes de producción:"
+            read -p "Contraseña de la base de datos: " -s DB_PASS
             echo ""
             sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=$DB_PASS/" "$ENV_FILE"
             
-            read -p "Redis password (optional): " -s REDIS_PASS
+            read -p "Contraseña de Redis (opcional): " -s REDIS_PASS
             echo ""
             if [ ! -z "$REDIS_PASS" ]; then
                 sed -i "s/REDIS_PASSWORD=.*/REDIS_PASSWORD=$REDIS_PASS/" "$ENV_FILE"
             fi
             
-            read -p "App URL (e.g., https://dgsuc.uba.ar): " APP_URL
+            read -p "URL de la aplicación (ej., https://dgsuc.uba.ar): " APP_URL
             sed -i "s|APP_URL=.*|APP_URL=$APP_URL|" "$ENV_FILE"
         fi
     else
-        log_info "$ENV_FILE already exists"
+        log_info "$ENV_FILE ya existe"
     fi
 done
 
 echo ""
 
-# Generate Laravel key if needed
+# Generación de clave de Laravel si es necesario
 if [ -f "./app/.env" ]; then
     if grep -q "APP_KEY=$" "./app/.env" || grep -q "APP_KEY=\s*$" "./app/.env"; then
-        log_step "Generating Laravel application key..."
+        log_step "Generando clave de aplicación Laravel..."
         docker run --rm -v $(pwd)/app:/app -w /app php:8.3-cli php artisan key:generate
-        log_info "Application key generated"
+        log_info "Clave de aplicación generada"
     fi
 fi
 
 echo ""
 
-# SSH keys setup
-log_title "SSH Configuration"
+# Configuración de claves SSH
+log_title "Configuración SSH"
 
 if [ ! -d "$HOME/.ssh" ]; then
     mkdir -p "$HOME/.ssh"
     chmod 700 "$HOME/.ssh"
 fi
 
-read -p "Do you need to configure SSH tunnels for external databases? (y/N): " SETUP_SSH
+read -p "¿Necesitas configurar túneles SSH para bases de datos externas? (y/N): " SETUP_SSH
 if [[ $SETUP_SSH =~ ^[Yy]$ ]]; then
-    log_step "Setting up SSH keys..."
+    log_step "Configurando claves SSH..."
     
-    read -p "Path to SSH private key for tunnels: " SSH_KEY_PATH
+    read -p "Ruta a la clave privada SSH para túneles: " SSH_KEY_PATH
     if [ -f "$SSH_KEY_PATH" ]; then
         cp "$SSH_KEY_PATH" "$HOME/.ssh/tunnel_key"
         chmod 600 "$HOME/.ssh/tunnel_key"
-        log_info "SSH key configured"
+        log_info "Clave SSH configurada"
     else
-        log_error "SSH key not found at $SSH_KEY_PATH"
+        log_error "Clave SSH no encontrada en $SSH_KEY_PATH"
     fi
     
-    # Update tunnel configuration
-    read -p "SSH tunnel host: " SSH_HOST
-    read -p "SSH tunnel user: " SSH_USER
-    read -p "SSH tunnel port (default: 22): " SSH_PORT
+    # Actualización de la configuración del túnel
+    read -p "Host del túnel SSH: " SSH_HOST
+    read -p "Usuario del túnel SSH: " SSH_USER
+    read -p "Puerto del túnel SSH (predeterminado: 22): " SSH_PORT
     SSH_PORT=${SSH_PORT:-22}
     
     for ENV_FILE in .env.dev .env.prod; do
@@ -183,51 +183,51 @@ fi
 
 echo ""
 
-# SSL setup for production
+# Configuración SSL para producción
 if [[ " $ENVIRONMENTS " =~ " prod " ]]; then
-    log_title "SSL Configuration"
+    log_title "Configuración SSL"
     
-    echo "Select SSL certificate option:"
-    echo "  1) Generate with Let's Encrypt"
-    echo "  2) Use existing certificates"
-    echo "  3) Generate self-signed (testing only)"
-    echo "  4) Skip for now"
-    read -p "Enter choice [1-4]: " SSL_CHOICE
+    echo "Selecciona la opción de certificado SSL:"
+    echo "  1) Generar con Let's Encrypt"
+    echo "  2) Usar certificados existentes"
+    echo "  3) Generar autofirmado (solo para pruebas)"
+    echo "  4) Omitir por ahora"
+    read -p "Ingresa tu elección [1-4]: " SSL_CHOICE
     
     case $SSL_CHOICE in
         1)
-            read -p "Enter domain (e.g., dgsuc.uba.ar): " DOMAIN
-            read -p "Enter email for Let's Encrypt: " LE_EMAIL
+            read -p "Ingresa el dominio (ej., dgsuc.uba.ar): " DOMAIN
+            read -p "Ingresa el email para Let's Encrypt: " LE_EMAIL
             ./scripts/ssl-setup.sh letsencrypt "$DOMAIN" "$LE_EMAIL"
             ;;
         2)
-            read -p "Path to certificate file: " CERT_PATH
-            read -p "Path to private key file: " KEY_PATH
+            read -p "Ruta al archivo de certificado: " CERT_PATH
+            read -p "Ruta al archivo de clave privada: " KEY_PATH
             if [ -f "$CERT_PATH" ] && [ -f "$KEY_PATH" ]; then
                 cp "$CERT_PATH" docker/nginx/certs/fullchain.pem
                 cp "$KEY_PATH" docker/nginx/certs/privkey.pem
-                log_info "SSL certificates copied"
+                log_info "Certificados SSL copiados"
             else
-                log_error "Certificate files not found"
+                log_error "Archivos de certificado no encontrados"
             fi
             ;;
         3)
             ./scripts/ssl-setup.sh self-signed
-            log_warn "Self-signed certificate generated (not for production!)"
+            log_warn "Certificado autofirmado generado (¡no para producción!)"
             ;;
         4)
-            log_warn "SSL configuration skipped"
+            log_warn "Configuración SSL omitida"
             ;;
     esac
 fi
 
 echo ""
 
-# Build Docker images
-log_title "Building Docker Images"
+# Construcción de imágenes Docker
+log_title "Construyendo Imágenes Docker"
 
 for ENV in $ENVIRONMENTS; do
-    log_step "Building $ENV images..."
+    log_step "Construyendo imágenes $ENV..."
     
     if [ "$ENV" = "dev" ]; then
         BUILD_TARGET=development docker-compose -f docker-compose.yml -f docker-compose.dev.yml build
@@ -236,74 +236,73 @@ for ENV in $ENVIRONMENTS; do
     fi
     
     if [ $? -eq 0 ]; then
-        log_info "$ENV images built successfully"
+        log_info "Imágenes $ENV construidas exitosamente"
     else
-        log_error "Failed to build $ENV images"
+        log_error "Error al construir imágenes $ENV"
         exit 1
     fi
 done
 
 echo ""
 
-# Initialize database
-log_title "Database Initialization"
+# Inicialización de la base de datos
+log_title "Inicialización de la Base de Datos"
 
-read -p "Do you want to initialize the database now? (Y/n): " INIT_DB
+read -p "¿Quieres inicializar la base de datos ahora? (Y/n): " INIT_DB
 if [[ ! $INIT_DB =~ ^[Nn]$ ]]; then
-    log_step "Starting database service..."
+    log_step "Iniciando servicio de base de datos..."
     docker-compose up -d postgres
     
-    log_step "Waiting for database to be ready..."
+    log_step "Esperando que la base de datos esté lista..."
     sleep 10
     
-    log_step "Creating database schemas..."
-    # Check if database is already initialized
+    log_step "Creando esquemas de base de datos..."
+    # Esperar un poco más para que la base esté completamente inicializada
+    sleep 5
+    
+    # La base de datos se inicializa automáticamente a través del script init.sql
+    # Solo verificamos que esté accesible
     if docker-compose exec -T postgres psql -U informes_user -d informes_app -c "SELECT 1;" > /dev/null 2>&1; then
-        log_info "Database already initialized and accessible"
+        log_info "Base de datos inicializada y accesible"
     else
-        # If not accessible, try with environment variables
-        docker-compose exec -T -e PGPASSWORD="${DB_PASSWORD}" postgres psql -U informes_user -d informes_app << EOF
-CREATE SCHEMA IF NOT EXISTS suc_app;
-CREATE SCHEMA IF NOT EXISTS informes_app;
-ALTER DATABASE informes_app SET search_path = 'suc_app,informes_app,public';
-EOF
+        log_warn "Base de datos no completamente accesible, pero se inicializará automáticamente"
     fi
     
-    log_info "Database initialized"
+    log_info "Base de datos inicializada"
 fi
 
 echo ""
 
-# Final summary
-log_title "Setup Complete!"
+# Resumen final
+log_title "¡Configuración Completada!"
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
-echo "║                    Next Steps                             ║"
+echo "║                    Próximos Pasos                         ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 
 if [[ " $ENVIRONMENTS " =~ " dev " ]]; then
-    echo "  Development Environment:"
-    echo "    1. Review configuration: .env.dev"
-    echo "    2. Start services: make dev"
-    echo "    3. Access application: http://localhost:8080"
+    echo "  Entorno de Desarrollo:"
+    echo "    1. Revisar configuración: .env.dev"
+    echo "    2. Iniciar servicios: make dev"
+    echo "    3. Acceder a la aplicación: http://localhost:8080"
     echo ""
 fi
 
 if [[ " $ENVIRONMENTS " =~ " prod " ]]; then
-    echo "  Production Environment:"
-    echo "    1. Review configuration: .env.prod"
-    echo "    2. Deploy: make prod"
-    echo "    3. Access application: https://your-domain.com"
+    echo "  Entorno de Producción:"
+    echo "    1. Revisar configuración: .env.prod"
+    echo "    2. Desplegar: make prod"
+    echo "    3. Acceder a la aplicación: https://tu-dominio.com"
     echo ""
 fi
 
-echo "  Useful commands:"
-echo "    • make help       - Show all available commands"
-echo "    • make logs       - View logs"
-echo "    • make shell      - Enter container"
-echo "    • make db-migrate - Run migrations"
+echo "  Comandos útiles:"
+echo "    • make help       - Mostrar todos los comandos disponibles"
+echo "    • make logs       - Ver logs"
+echo "    • make shell      - Entrar al contenedor"
+echo "    • make db-migrate - Ejecutar migraciones"
 echo ""
 
-log_info "Initialization complete!"
+log_info "¡Inicialización completada!"

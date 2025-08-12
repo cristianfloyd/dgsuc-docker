@@ -106,5 +106,14 @@ RUN pecl install xdebug && \
 
 WORKDIR /var/www/html
 
+# Fix storage permissions for Laravel
+RUN mkdir -p storage/logs storage/framework/{cache,sessions,views} bootstrap/cache && \
+    chmod -R 775 storage bootstrap/cache && \
+    chown -R www-data:www-data storage bootstrap/cache
+
+# Add permission fix script for development
+COPY fix-permissions.sh /usr/local/bin/fix-permissions.sh
+RUN chmod +x /usr/local/bin/fix-permissions.sh
+
 # Keep container running in dev
 CMD ["php-fpm"]

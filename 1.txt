@@ -1,0 +1,1 @@
+Unable to set application key. No APP_KEY variable was found in the .env file.

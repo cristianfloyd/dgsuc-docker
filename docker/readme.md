@@ -92,8 +92,8 @@ Esta solución Docker proporciona un ambiente completo y escalable para el Siste
 ### 1. Clonar el Repositorio
 
 ```bash
-git clone https://github.com/uba/dgsuc-sistema.git
-cd dgsuc-sistema
+git clone https://github.com/cristianfloyd/informes-app.git
+cd informes-app
 ```
 
 ### 2. Configuración Inicial
@@ -106,6 +106,31 @@ cp .env.docker.example .env.dev
 # Editar configuraciones según ambiente
 nano .env.prod  # o vim, code, etc.
 ```
+
+### 2.1. 📁 Gestión Automática de Permisos
+
+**En desarrollo**, el sistema corrige automáticamente los permisos de Laravel:
+
+```bash
+# Los permisos se corrigen automáticamente al iniciar el contenedor
+# No requiere intervención manual gracias al script fix-permissions.sh
+```
+
+**Directorios gestionados automáticamente:**
+- `storage/logs` - Logs de Laravel (775)
+- `storage/framework` - Cache de Laravel (775)  
+- `bootstrap/cache` - Cache de rutas y configuración (775)
+
+**Si necesitas corregir manualmente:**
+```bash
+# Corregir permisos en contenedor ejecutándose
+docker exec dgsuc_app bash -c "chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache"
+
+# O reconstruir el contenedor
+make dev-rebuild
+```
+
+**⚠️ Nota importante**: Los permisos deben usar `www-data` como propietario porque PHP-FPM se ejecuta con este usuario, no como `root`.
 
 ### 3. Configurar SSH Keys (para túneles)
 
@@ -523,9 +548,9 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 
 Para soporte y consultas:
 
-- **Email**: soporte-dgsuc@uba.ar
+- **Email**: carenas@uba.ar
 - **Documentación**: https://docs.dgsuc.uba.ar
-- **Issues**: https://github.com/uba/dgsuc-sistema/issues
+- **Issues**: https://github.com/cristianfloyd/informes-app/issues
 
 ## 📄 Licencia
 

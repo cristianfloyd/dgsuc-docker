@@ -18,6 +18,11 @@ dev: ## Start development environment
 	$(COMPOSE_DEV) up -d
 	@echo "Development environment is running at http://localhost:8080"
 
+dev-wsl: ## Start development environment for WSL
+	@echo "Starting WSL development environment..."
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.wsl.yml up -d
+	@echo "WSL development environment is running at http://localhost:8080"
+
 dev-build: ## Build development images
 	BUILD_TARGET=development $(COMPOSE_DEV) build
 

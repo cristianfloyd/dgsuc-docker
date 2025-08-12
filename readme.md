@@ -1,6 +1,6 @@
 # 🐳 DGSUC Docker Infrastructure
 
-Infraestructura Docker containerizada para el Sistema de Informes y Controles de la Universidad de Buenos Aires.
+Infraestructura Docker containerizada para el Sistema de Informes y Controles DGSUC.
 
 > **Nota**: Este repositorio contiene únicamente la infraestructura Docker. El código de la aplicación se clona desde un repositorio separado.
 
@@ -26,7 +26,7 @@ dgsuc-docker/                 # Este repositorio
 ### 1️⃣ Clonar este repositorio
 
 ```bash
-git clone https://github.com/uba/dgsuc-docker.git
+git clone https://github.com/cristianfloyd/dgsuc-docker.git
 cd dgsuc-docker
 ```
 
@@ -72,7 +72,7 @@ make prod
 
 ```bash
 # Clonar infraestructura
-git clone https://github.com/uba/dgsuc-docker.git
+git clone https://github.com/cristianfloyd/dgsuc-docker.git
 cd dgsuc-docker
 
 # Clonar aplicación
@@ -246,7 +246,7 @@ make ssl-renew        # Renovar certificados
 
 ```bash
 # Clonar infraestructura
-git clone https://github.com/uba/dgsuc-docker.git
+git clone https://github.com/cristianfloyd/dgsuc-docker.git
 cd dgsuc-docker
 
 # Inicializar
@@ -391,7 +391,7 @@ make tunnel-restart
 make clone
 
 # O manualmente
-./scripts/clone-app.sh https://github.com/uba/dgsuc-sistema.git
+./scripts/clone-app.sh https://github.com/cristianfloyd/informes-app.git
 ```
 
 ### Problema: "Connection refused" a DB externa
@@ -570,9 +570,9 @@ make prod-restart
 
 ## 📞 Soporte
 
-- **Email**: soporte-dgsuc@uba.ar
-- **Issues**: https://github.com/uba/dgsuc-docker/issues
-- **Wiki**: https://github.com/uba/dgsuc-docker/wiki
+- **Email**: carenas@uba.ar
+- **Issues**: https://github.com/cristianfloyd/dgsuc-docker/issues
+- **Wiki**: https://github.com/cristianfloyd/dgsuc-docker/wiki
 
 ## 📄 Licencia
 
