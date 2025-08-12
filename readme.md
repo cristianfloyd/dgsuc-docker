@@ -12,9 +12,8 @@ dgsuc-docker/                 # Este repositorio
 │   ├── app/                 # PHP-FPM
 │   ├── nginx/               # Servidor web
 │   ├── workers/             # Queue workers
-│   ├── ssh-tunnel/          # Gestión de túneles SSH
 │   ├── postgres/            # Base de datos
-│   ├── redis/               # Cache
+│   ├── redis/               # Cache y sesiones
 │   └── monitoring/          # Prometheus + Grafana
 ├── scripts/                  # Scripts de gestión
 ├── app/                      # ← Aplicación Laravel (clonada aquí)
@@ -96,35 +95,35 @@ Variables críticas a configurar:
 
 ```env
 # Base de datos principal
+DB_DATABASE=informes_app
+DB_USERNAME=informes_user
 DB_PASSWORD=contraseña_segura
 
-# Conexiones externas (Mapuche)
-DB2_HOST=127.0.0.1
-DB2_PORT=5433
-DB2_DATABASE=mapuche_prod
-DB2_USERNAME=readonly_user
-DB2_PASSWORD=readonly_pass
-
-# SSH Tunnels
-MAPUCHE_SSH_HOST=servidor.uba.ar
-MAPUCHE_SSH_USER=usuario_ssh
-SSH_TUNNEL_PORTS=5433:localhost:5432
+# Redis Cache
+REDIS_PASSWORD=redis_contraseña_segura
 
 # Azure AD (SSO)
 MICROSOFT_CLIENT_ID=xxx
 MICROSOFT_CLIENT_SECRET=xxx
+MICROSOFT_REDIRECT_URI=https://dgsuc.uba.ar/auth/microsoft/callback
+
+# SSL Certificates
+CERTBOT_EMAIL=admin@uba.ar
+CERTBOT_DOMAIN=dgsuc.uba.ar
+
+# Monitoring
+GRAFANA_PASSWORD=grafana_admin_password
 ```
 
-### Paso 3: Configurar túneles SSH
+### Paso 3: Configurar aplicación Laravel
 
 ```bash
-# Copiar SSH key
-cp ~/.ssh/id_rsa_tunnel ~/.ssh/
-chmod 600 ~/.ssh/id_rsa_tunnel
+# Clonar y configurar aplicación
+make clone
 
-# Configurar en .env
-MAPUCHE_SSH_HOST=mapuche.uba.ar
-MAPUCHE_SSH_USER=tunnel_user
+# Configurar permisos
+chmod -R 775 ./app/storage
+chmod -R 775 ./app/bootstrap/cache
 ```
 
 ### Paso 4: SSL/TLS
@@ -163,7 +162,7 @@ docker-compose ps
 | **redis** | 6379 | Cache y sesiones |
 | **workers** | - | Queue workers (Supervisor) |
 | **scheduler** | - | Laravel scheduler (cron) |
-| **ssh-tunnel** | - | Gestión de túneles SSH |
+| **certbot** | - | Certificados SSL automáticos |
 | **prometheus** | 9090 | Métricas (producción) |
 | **grafana** | 3000 | Dashboards (producción) |
 
@@ -171,9 +170,11 @@ docker-compose ps
 
 | Servicio | Puerto | URL |
 |----------|--------|-----|
+| **app** | 8080 | http://localhost:8080 |
 | **mailhog** | 8025 | http://localhost:8025 |
 | **phpmyadmin** | 8090 | http://localhost:8090 |
 | **xdebug** | 9003 | - |
+| **node** | - | Compilación de assets |
 
 ## 🎮 Comandos Principales
 
@@ -225,19 +226,12 @@ make queue-failed     # Ver jobs fallidos
 make queue-retry      # Reintentar jobs fallidos
 ```
 
-### Túneles SSH
-
-```bash
-make tunnel-status    # Ver estado de túneles
-make tunnel-restart   # Reiniciar túneles
-make tunnel-logs      # Ver logs de túneles
-```
-
 ### SSL/TLS
 
 ```bash
 make ssl-generate     # Generar con Let's Encrypt
 make ssl-renew        # Renovar certificados
+make ssl-staging      # Generar certificados de prueba
 ```
 
 ## 🔄 Workflow de Desarrollo
@@ -308,9 +302,9 @@ nano .env.prod
 # Configurar SSL
 ./scripts/ssl-setup.sh letsencrypt dgsuc.uba.ar admin@uba.ar
 
-# Configurar SSH tunnels
-cp /path/to/ssh/key ~/.ssh/tunnel_key
-chmod 600 ~/.ssh/tunnel_key
+# Configurar variables de entorno de producción
+cp .env.example .env.prod
+# Editar variables sensibles como REDIS_PASSWORD, MICROSOFT_CLIENT_SECRET, etc.
 ```
 
 ### 2. Deploy
@@ -339,47 +333,43 @@ make prod-logs
 curl -k https://localhost/health
 ```
 
-## 🔌 Configuración de Túneles SSH
+## 📊 Configuración de Redis y Cache
 
-Los túneles SSH permiten conectar a bases de datos externas (Mapuche):
+Redis se utiliza para cache, sesiones y colas de trabajo:
 
 ### Configuración básica
 
 ```env
 # .env.prod
-MAPUCHE_SSH_HOST=servidor.uba.ar
-MAPUCHE_SSH_USER=usuario
-MAPUCHE_SSH_PORT=22
-SSH_TUNNEL_PORTS=5433:localhost:5432,5434:backup1:5432
+REDIS_PASSWORD=password_segura
+CACHE_DRIVER=redis
+SESSION_DRIVER=redis
+QUEUE_CONNECTION=redis
 ```
 
-### Múltiples conexiones
+### Configuración avanzada
 
 ```env
-# Producción Mapuche
-DB2_HOST=127.0.0.1
-DB2_PORT=5433
+# Configuración de memoria
+REDIS_MAXMEMORY=2gb
+REDIS_MAXMEMORY_POLICY=allkeys-lru
 
-# Backup Enero
-DB3_HOST=127.0.0.1
-DB3_PORT=5434
-
-# Backup Febrero
-DB4_HOST=127.0.0.1
-DB4_PORT=5435
+# Persistencia
+REDIS_SAVE=900 1 300 10 60 10000
+REDIS_APPENDONLY=yes
 ```
 
-### Monitoreo de túneles
+### Monitoreo de Redis
 
 ```bash
-# Ver estado
-make tunnel-status
+# Verificar estado de Redis
+docker-compose exec redis redis-cli ping
 
 # Ver logs
-docker-compose logs ssh-tunnel
+docker-compose logs redis
 
-# Reiniciar si hay problemas
-make tunnel-restart
+# Monitorear conexiones
+docker-compose exec redis redis-cli monitor
 ```
 
 ## 🐛 Troubleshooting
@@ -394,17 +384,17 @@ make clone
 ./scripts/clone-app.sh https://github.com/cristianfloyd/informes-app.git
 ```
 
-### Problema: "Connection refused" a DB externa
+### Problema: "Connection refused" a Redis
 
 ```bash
-# Verificar túnel SSH
-make tunnel-status
+# Verificar estado de Redis
+docker-compose ps redis
 
-# Reiniciar túnel
-make tunnel-restart
+# Reiniciar Redis
+docker-compose restart redis
 
 # Verificar conectividad
-docker-compose exec ssh-tunnel nc -zv localhost 5433
+docker-compose exec app php artisan cache:clear
 ```
 
 ### Problema: "Memory exhausted" en SICOSS
@@ -452,7 +442,7 @@ make monitor-start
 - Queries lentas (PostgreSQL)
 - Cache hit rate (Redis)
 - Queue jobs procesados
-- Estado de túneles SSH
+- Certificados SSL y expiración
 
 ## 🔒 Seguridad
 
@@ -501,15 +491,14 @@ dgsuc-docker/
 │   │   ├── Dockerfile
 │   │   ├── supervisord.conf
 │   │   └── entrypoint.sh
-│   ├── ssh-tunnel/           # SSH tunnels
-│   │   ├── Dockerfile
-│   │   ├── entrypoint.sh
-│   │   └── healthcheck.sh
 │   ├── postgres/             # PostgreSQL
 │   │   ├── init.sql
 │   │   └── postgresql.conf
-│   └── redis/                # Redis
-│       └── redis.conf
+│   ├── redis/                # Redis
+│   │   └── redis.conf
+│   └── monitoring/           # Prometheus + Grafana
+│       ├── prometheus/
+│       └── grafana/
 ├── scripts/                   # Scripts de gestión
 │   ├── init.sh              # Inicialización
 │   ├── clone-app.sh         # Clonar aplicación
@@ -546,12 +535,12 @@ make prod-restart
 | `APP_ENV` | Entorno de aplicación | production |
 | `APP_URL` | URL de la aplicación | https://dgsuc.uba.ar |
 | `DB_PASSWORD` | Contraseña PostgreSQL | SecurePass123! |
-| `DB2_*` | Conexión Mapuche | Ver .env.example |
 | `REDIS_PASSWORD` | Contraseña Redis | RedisPass456! |
 | `MICROSOFT_CLIENT_ID` | Azure AD Client ID | xxx-xxx-xxx |
-| `SSH_TUNNEL_PORTS` | Puertos túneles SSH | 5433:host:5432 |
+| `CERTBOT_EMAIL` | Email para certificados SSL | admin@uba.ar |
+| `CERTBOT_DOMAIN` | Dominio principal | dgsuc.uba.ar |
 | `WORKER_MEMORY` | Memoria para workers | 4096 |
-| `SICOSS_MEMORY_LIMIT` | Límite memoria SICOSS | 8192 |
+| `GRAFANA_PASSWORD` | Contraseña Grafana | GrafanaPass789! |
 
 ## 🤝 Contribuir
 
@@ -580,6 +569,6 @@ Propiedad de la Universidad de Buenos Aires - Todos los derechos reservados.
 
 ---
 
-**Versión**: 1.0.0  
-**Última actualización**: Agosto 2025  
+**Versión**: 2.0.0  
+**Última actualización**: Diciembre 2024  
 **Mantenido por**: Equipo DGSUC - UBA
