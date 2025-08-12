@@ -52,7 +52,6 @@ services:
   postgres:
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - backup_data:/backups
       - ./docker/postgres/postgresql-prod.conf:/etc/postgresql/postgresql.conf:ro
     ports: []  # No external ports in production
     deploy:
@@ -87,25 +86,6 @@ services:
       WORKER_PROCESSES: 6
       WORKER_MEMORY: 4096
       WORKER_TIMEOUT: 3600
-
-  # Production-only: Backup service
-  backup:
-    image: postgres:17-alpine
-    container_name: dgsuc_backup
-    restart: unless-stopped
-    environment:
-      PGPASSWORD: ${DB_PASSWORD}
-    volumes:
-      - backup_data:/backups
-      - ./scripts/backup.sh:/backup.sh:ro
-    networks:
-      - dgsuc_network
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "while true; do
-        /backup.sh
-        sleep 86400
-      done"
 
   # Production-only: Monitoring
   prometheus:
