@@ -186,7 +186,7 @@ services:
     build:
       context: ./docker/app
       dockerfile: Dockerfile
-      target: ${BUILD_TARGET:-production}
+      target: ${BUILD_TARGET:-development}
     container_name: dgsuc_scheduler
     restart: unless-stopped
     environment:

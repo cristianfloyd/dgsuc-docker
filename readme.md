@@ -283,11 +283,63 @@ make dev
 # Aplicación disponible en http://localhost:8080
 ```
 
+#### Para Windows:
+
+```bash
+# Clonar infraestructura
+git clone https://github.com/cristianfloyd/dgsuc-docker.git
+cd dgsuc-docker
+
+# Inicializar
+make init
+
+# Iniciar servicios (Windows optimizado)
+make dev-windows
+
+# En otra terminal, para hot reload de assets:
+make node-dev
+
+# Aplicación disponible en http://localhost:8080
+```
+
+#### Si hay problemas de build:
+
+```bash
+# Limpiar y reconstruir completamente
+make dev-rebuild
+
+# O limpiar manualmente
+make dev-clean
+make dev
+```
+
 ### 2. Desarrollo diario
 
+#### Linux/macOS:
 ```bash
 # Iniciar ambiente
 make dev
+
+# Ver logs
+make logs
+
+# Ejecutar migraciones
+make db-migrate
+
+# Entrar al contenedor
+make shell
+
+# Detener al finalizar
+make stop
+```
+
+#### Windows:
+```bash
+# Iniciar ambiente (Windows optimizado)
+make dev-windows
+
+# En otra terminal, para hot reload de assets:
+make node-dev
 
 # Ver logs
 make logs

@@ -20,7 +20,7 @@ help: ## Show this help message
 # Development Commands
 dev: ## Start development environment
 	@echo "Starting development environment..."
-	$(COMPOSE_DEV) up -d
+	BUILD_TARGET=development $(COMPOSE_DEV) up -d
 	@echo "Development environment is running at http://localhost:8080"
 
 dev-wsl: ## Start development environment for WSL
@@ -42,14 +42,47 @@ dev-stop: ## Stop development environment
 
 dev-clean: ## Clean development environment (removes volumes)
 	$(COMPOSE_DEV) down -v
+	docker system prune -f
+	docker volume prune -f
 
 dev-deploy: ## Full development deployment with assets
 	@echo "Starting development deployment..."
-	./scripts/deploy.sh development
-	@echo "Development deployment complete!"
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		echo "Windows detected, using Docker commands directly..."; \
+		BUILD_TARGET=development $(COMPOSE_DEV) down; \
+		git pull origin main; \
+		docker run --rm -v "$(PWD)/app:/var/www/html" -w /var/www/html node:18-alpine sh -c "npm install && npm run build"; \
+		BUILD_TARGET=development $(COMPOSE_DEV) build --no-cache; \
+		BUILD_TARGET=development $(COMPOSE_DEV) up -d; \
+		sleep 10; \
+		$(COMPOSE_DEV) exec app php artisan migrate --force; \
+		$(COMPOSE_DEV) exec app php artisan cache:clear; \
+		$(COMPOSE_DEV) exec app php artisan config:clear; \
+		$(COMPOSE_DEV) exec app php artisan view:clear; \
+		$(COMPOSE_DEV) run --rm app php artisan test; \
+		echo "Development deployment complete!"; \
+	else \
+		BUILD_TARGET=development ./scripts/deploy.sh development; \
+		echo "Development deployment complete!"; \
+	fi
 
 dev-build-assets: ## Build assets for development
-	$(COMPOSE_DEV) exec node npm run build
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		echo "Building assets for development (Windows)..."; \
+		docker run --rm -v "$(PWD)/app:/var/www/html" -w /var/www/html node:18-alpine sh -c "npm install && npm run build"; \
+	else \
+		$(COMPOSE_DEV) exec node npm run build; \
+	fi
+
+dev-rebuild: ## Rebuild development environment completely
+	@echo "Rebuilding development environment..."
+	BUILD_TARGET=development $(COMPOSE_DEV) down
+	docker system prune -f
+	BUILD_TARGET=development $(COMPOSE_DEV) build --no-cache
+	BUILD_TARGET=development $(COMPOSE_DEV) up -d
+	@echo "Installing Composer dependencies..."
+	$(COMPOSE_DEV) exec app composer install
+	@echo "Development environment rebuilt!"
 
 # Production Commands
 prod: ## Start production environment
@@ -107,6 +140,18 @@ artisan: ## Run artisan command (usage: make artisan cmd="route:list")
 composer: ## Run composer command (usage: make composer cmd="require package")
 	$(COMPOSE_DEV) exec app composer $(cmd)
 
+composer-install: ## Install Composer dependencies
+	@echo "Installing Composer dependencies..."
+	$(COMPOSE_DEV) exec app composer install
+
+deps-install: ## Install all dependencies (Composer + npm)
+	@echo "Installing all dependencies..."
+	@echo "Installing Composer dependencies..."
+	$(COMPOSE_DEV) exec app composer install
+	@echo "Installing npm dependencies..."
+	$(COMPOSE_DEV) exec node npm install
+	@echo "All dependencies installed!"
+
 npm: ## Run npm command (usage: make npm cmd="run build")
 	$(COMPOSE_DEV) exec node npm $(cmd)
 
@@ -158,21 +203,38 @@ node-build: ## Run npm build command (development)
 # Asset Commands (Both environments)
 assets-build: ## Build assets for current environment
 	@echo "Building assets for development environment..."
-	$(COMPOSE_DEV) exec node npm run build
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		docker run --rm -v "$(shell pwd)/app:/var/www/html" -w /var/www/html node:18-alpine sh -c "npm install && npm run build"; \
+	else \
+		$(COMPOSE_DEV) exec node npm run build; \
+	fi
 
 assets-install: ## Install npm dependencies for current environment
 	@echo "Installing npm dependencies for development environment..."
-	$(COMPOSE_DEV) exec node npm install
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		docker run --rm -v "$(PWD)/app:/var/www/html" -w /var/www/html node:18-alpine sh -c "npm install"; \
+	else \
+		$(COMPOSE_DEV) exec node npm install; \
+	fi
 
 assets-watch: ## Watch and build assets in development
 	@echo "Starting asset watcher for development..."
-	$(COMPOSE_DEV) exec node npm run dev
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		echo "Windows detected. For hot reload, use: make dev and then make node-dev in another terminal"; \
+		make node-dev; \
+	else \
+		$(COMPOSE_DEV) exec node npm run dev; \
+	fi
 
 assets-check: ## Check if assets are built
 	@echo "Checking built assets..."
 	@if [ -d "app/public/build" ]; then \
 		echo "✓ Assets directory exists"; \
-		ls -la app/public/build/; \
+		if [ "$(OS)" = "Windows_NT" ]; then \
+			dir app\\public\\build; \
+		else \
+			ls -la app/public/build/; \
+		fi; \
 	else \
 		echo "✗ Assets directory not found. Run 'make assets-build' first"; \
 	fi
@@ -217,7 +279,7 @@ ssl-generate: ## Generate SSL certificate with Let's Encrypt
 		-d dgsuc.uba.ar \
 		-d www.dgsuc.uba.ar
 
-ssl-renew: ## Renew SSL certificates
+ssl-renew-docker: ## Renew SSL certificates using Docker
 	docker run -it --rm \
 		-v "$(PWD)/docker/nginx/certs:/etc/letsencrypt" \
 		-v "$(PWD)/public:/var/www/html" \
@@ -274,6 +336,24 @@ install: ## Initial installation
 	@make dev
 	@make db-migrate
 	@echo "Installation complete!"
+
+# Windows-specific commands
+dev-windows: ## Start development environment (Windows optimized)
+	@echo "Starting development environment for Windows..."
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		BUILD_TARGET=development $(COMPOSE_DEV) up -d; \
+		echo "Development environment started!"; \
+		echo "For hot reload, run 'make node-dev' in another terminal"; \
+		echo "Application available at: http://localhost:8080"; \
+	else \
+		echo "This command is for Windows only. Use 'make dev' instead."; \
+	fi
+
+dev-simple: ## Simple development start (cross-platform)
+	@echo "Starting development environment..."
+	BUILD_TARGET=development $(COMPOSE_DEV) up -d
+	@echo "Development environment started!"
+	@echo "Application available at: http://localhost:8080"
 
 ssl-setup: ## Setup SSL certificates
 	@echo "Setting up SSL certificates..."
