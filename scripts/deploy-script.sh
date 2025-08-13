@@ -76,6 +76,23 @@ fi
 log_info "Pulling latest code..."
 git pull origin main
 
+# Build assets (both environments)
+if [ "$ENVIRONMENT" == "production" ]; then
+    log_info "Building production assets..."
+    docker run --rm \
+        -v "$(pwd)/app:/var/www/html" \
+        -w /var/www/html \
+        node:18-alpine \
+        sh -c "npm install --production && npm run build"
+elif [ "$ENVIRONMENT" == "development" ]; then
+    log_info "Building development assets..."
+    docker run --rm \
+        -v "$(pwd)/app:/var/www/html" \
+        -w /var/www/html \
+        node:18-alpine \
+        sh -c "npm install && npm run build"
+fi
+
 # Build images
 log_info "Building Docker images..."
 docker-compose $COMPOSE_FILES build --no-cache

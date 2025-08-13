@@ -53,6 +53,9 @@ RUN addgroup -g 1000 -S informes && \
 # Production build stage
 FROM base AS production
 
+# Install Node.js and npm for asset building
+RUN apk add --no-cache nodejs npm
+
 # Copy PHP configuration
 COPY php.ini /usr/local/etc/php/conf.d/app.ini
 
@@ -62,9 +65,15 @@ WORKDIR /var/www/html
 # Copy application files
 COPY --chown=informes:informes . .
 
-# Install dependencies (production only)
+# Install PHP dependencies (production only)
 RUN composer install --no-dev --no-interaction --no-progress --optimize-autoloader && \
     composer clear-cache
+
+# Install Node.js dependencies and build assets
+RUN npm ci --only=production && \
+    npm run build && \
+    npm cache clean --force && \
+    rm -rf node_modules
 
 # Optimize Laravel
 RUN php artisan config:cache && \

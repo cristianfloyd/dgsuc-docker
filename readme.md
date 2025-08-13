@@ -181,8 +181,17 @@ docker-compose ps
 ### Gestión de Servicios
 
 ```bash
-make dev              # Iniciar desarrollo
-make prod             # Iniciar producción
+# Desarrollo
+make dev              # Iniciar desarrollo básico
+make dev-deploy       # Deployment completo con assets
+make dev-build-assets # Solo compilar assets
+
+# Producción
+make prod             # Iniciar producción básico
+make prod-deploy      # Deployment completo con assets
+make prod-build-assets # Solo compilar assets
+
+# General
 make stop             # Detener servicios
 make restart          # Reiniciar servicios
 make ps               # Ver estado
@@ -198,6 +207,25 @@ make shell            # Entrar al contenedor
 make artisan cmd="..." # Ejecutar comando Artisan
 make composer cmd="..." # Ejecutar Composer
 make npm cmd="..."    # Ejecutar NPM
+```
+
+### Assets y Frontend
+
+```bash
+# Desarrollo
+make assets-build     # Compilar assets para desarrollo
+make assets-watch     # Modo desarrollo con hot reload
+make assets-install   # Instalar dependencias npm
+make assets-check     # Verificar assets compilados
+make assets-clean     # Limpiar assets compilados
+
+# Producción
+make prod-build-assets # Compilar assets para producción
+
+# Comandos específicos
+make node-dev         # Vite en modo desarrollo
+make node-build       # Compilar con servicio node
+make node-install     # Instalar dependencias
 ```
 
 ### Base de Datos
@@ -283,11 +311,31 @@ make update
 # Reinstalar dependencias si es necesario
 make composer cmd="install"
 
+# Compilar assets (si hay cambios en frontend)
+make assets-build
+
 # Ejecutar migraciones
 make db-migrate
 
 # Reiniciar servicios
 make restart
+```
+
+### 4. Trabajo con assets
+
+```bash
+# Desarrollo con hot reload
+make assets-watch
+
+# Compilar para producción
+make assets-build
+
+# Verificar assets compilados
+make assets-check
+
+# Limpiar y recompilar
+make assets-clean
+make assets-build
 ```
 
 ## 🚀 Deployment a Producción
@@ -310,8 +358,15 @@ cp .env.example .env.prod
 ### 2. Deploy
 
 ```bash
+# Deployment completo con assets
+make prod-deploy
+
+# O paso a paso:
 # Build de producción
 BUILD_TARGET=production make prod-build
+
+# Compilar assets para producción
+make prod-build-assets
 
 # Deploy
 make prod
@@ -331,6 +386,73 @@ make prod-logs
 
 # Test de conectividad
 curl -k https://localhost/health
+```
+
+## 🎨 Gestión de Assets y Frontend
+
+### Arquitectura de Assets
+
+El proyecto utiliza **Vite** para la compilación de assets con las siguientes características:
+
+- **Desarrollo:** Hot reload y compilación en tiempo real
+- **Producción:** Compilación optimizada con minificación
+- **Docker:** Contenedores temporales para producción, servicio permanente para desarrollo
+
+### Configuración de Vite
+
+```javascript
+// app/vite.config.js
+import { defineConfig } from 'vite';
+import laravel from 'laravel-vite-plugin';
+
+export default defineConfig({
+    plugins: [
+        laravel({
+            input: [
+                'resources/css/app.css',
+                'resources/js/app.js',
+                "resources/css/filament/reportes/theme.css",
+            ],
+            refresh: true,
+        }),
+    ],
+});
+```
+
+### Workflow de Assets
+
+#### Desarrollo
+```bash
+# Iniciar modo desarrollo con hot reload
+make assets-watch
+
+# Compilar assets para desarrollo
+make assets-build
+
+# Verificar assets compilados
+make assets-check
+```
+
+#### Producción
+```bash
+# Compilar assets optimizados
+make prod-build-assets
+
+# Verificar assets de producción
+make assets-check
+```
+
+### Troubleshooting de Assets
+
+```bash
+# Si los assets no se cargan
+make assets-clean          # Limpiar assets
+make assets-install        # Reinstalar dependencias
+make assets-build          # Recompilar
+
+# Verificar que Vite esté funcionando
+make node-dev              # Iniciar Vite en modo desarrollo
+make assets-check          # Verificar archivos compilados
 ```
 
 ## 📊 Configuración de Redis y Cache

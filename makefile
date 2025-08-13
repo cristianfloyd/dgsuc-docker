@@ -11,6 +11,11 @@ help: ## Show this help message
 	@echo ''
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ''
+	@echo '📚 Documentation:'
+	@echo '  📖 README.md                    - Documentación principal'
+	@echo '  🎨 docs/ASSETS_MANAGEMENT.md    - Gestión de assets'
+	@echo '  🚀 app/PRODUCTION_DEPLOYMENT_GUIDE.md - Guía de producción'
 
 # Development Commands
 dev: ## Start development environment
@@ -38,6 +43,14 @@ dev-stop: ## Stop development environment
 dev-clean: ## Clean development environment (removes volumes)
 	$(COMPOSE_DEV) down -v
 
+dev-deploy: ## Full development deployment with assets
+	@echo "Starting development deployment..."
+	./scripts/deploy.sh development
+	@echo "Development deployment complete!"
+
+dev-build-assets: ## Build assets for development
+	$(COMPOSE_DEV) exec node npm run build
+
 # Production Commands
 prod: ## Start production environment
 	@echo "Starting production environment..."
@@ -45,6 +58,18 @@ prod: ## Start production environment
 
 prod-build: ## Build production images
 	BUILD_TARGET=production $(COMPOSE_PROD) build
+
+prod-build-assets: ## Build assets for production
+	docker run --rm \
+		-v "$(PWD)/app:/var/www/html" \
+		-w /var/www/html \
+		node:18-alpine \
+		sh -c "npm install --production && npm run build"
+
+prod-deploy: ## Full production deployment with assets
+	@echo "Starting production deployment..."
+	./scripts/deploy.sh production
+	@echo "Production deployment complete!"
 
 prod-logs: ## Show production logs
 	$(COMPOSE_PROD) logs -f
@@ -60,13 +85,13 @@ prod-restart: ## Restart production services
 
 # Database Commands
 db-migrate: ## Run database migrations
-	docker-compose exec app php artisan migrate
+	$(COMPOSE_DEV) exec app php artisan migrate
 
 db-seed: ## Seed the database
-	docker-compose exec app php artisan db:seed
+	$(COMPOSE_DEV) exec app php artisan db:seed
 
 db-fresh: ## Fresh database with seeds
-	docker-compose exec app php artisan migrate:fresh --seed
+	$(COMPOSE_DEV) exec app php artisan migrate:fresh --seed
 
 db-backup: ## Backup database
 	./scripts/backup.sh database
@@ -77,55 +102,95 @@ db-restore: ## Restore database from backup
 
 # Laravel Commands
 artisan: ## Run artisan command (usage: make artisan cmd="route:list")
-	docker-compose exec app php artisan $(cmd)
+	$(COMPOSE_DEV) exec app php artisan $(cmd)
 
 composer: ## Run composer command (usage: make composer cmd="require package")
-	docker-compose exec app composer $(cmd)
+	$(COMPOSE_DEV) exec app composer $(cmd)
 
 npm: ## Run npm command (usage: make npm cmd="run build")
-	docker-compose exec node npm $(cmd)
+	$(COMPOSE_DEV) exec node npm $(cmd)
 
 test: ## Run tests
-	docker-compose exec app php artisan test
+	$(COMPOSE_DEV) exec app php artisan test
 
 test-coverage: ## Run tests with coverage
-	docker-compose exec app php artisan test --coverage
+	$(COMPOSE_DEV) exec app php artisan test --coverage
 
 # Cache Commands
 cache-clear: ## Clear all caches
-	docker-compose exec app php artisan cache:clear
-	docker-compose exec app php artisan config:clear
-	docker-compose exec app php artisan route:clear
-	docker-compose exec app php artisan view:clear
+	$(COMPOSE_DEV) exec app php artisan cache:clear
+	$(COMPOSE_DEV) exec app php artisan config:clear
+	$(COMPOSE_DEV) exec app php artisan route:clear
+	$(COMPOSE_DEV) exec app php artisan view:clear
 
 cache-build: ## Build all caches (production)
-	docker-compose exec app php artisan config:cache
-	docker-compose exec app php artisan route:cache
-	docker-compose exec app php artisan view:cache
-	docker-compose exec app php artisan event:cache
+	$(COMPOSE_DEV) exec app php artisan config:cache
+	$(COMPOSE_DEV) exec app php artisan route:cache
+	$(COMPOSE_DEV) exec app php artisan view:cache
+	$(COMPOSE_DEV) exec app php artisan event:cache
 
 # Queue Commands
 queue-work: ## Start queue worker
-	docker-compose exec app php artisan queue:work
+	$(COMPOSE_DEV) exec app php artisan queue:work
 
 queue-restart: ## Restart queue workers
-	docker-compose exec app php artisan queue:restart
+	$(COMPOSE_DEV) exec app php artisan queue:restart
 
 queue-failed: ## List failed jobs
-	docker-compose exec app php artisan queue:failed
+	$(COMPOSE_DEV) exec app php artisan queue:failed
 
 queue-retry: ## Retry failed jobs
-	docker-compose exec app php artisan queue:retry all
+	$(COMPOSE_DEV) exec app php artisan queue:retry all
+
+# Node.js Commands
+node-shell: ## Enter node container shell (development)
+	$(COMPOSE_DEV) exec node sh
+
+node-install: ## Install npm dependencies (development)
+	$(COMPOSE_DEV) exec node npm install
+
+node-dev: ## Run npm dev command (development)
+	$(COMPOSE_DEV) exec node npm run dev
+
+node-build: ## Run npm build command (development)
+	$(COMPOSE_DEV) exec node npm run build
+
+# Asset Commands (Both environments)
+assets-build: ## Build assets for current environment
+	@echo "Building assets for development environment..."
+	$(COMPOSE_DEV) exec node npm run build
+
+assets-install: ## Install npm dependencies for current environment
+	@echo "Installing npm dependencies for development environment..."
+	$(COMPOSE_DEV) exec node npm install
+
+assets-watch: ## Watch and build assets in development
+	@echo "Starting asset watcher for development..."
+	$(COMPOSE_DEV) exec node npm run dev
+
+assets-check: ## Check if assets are built
+	@echo "Checking built assets..."
+	@if [ -d "app/public/build" ]; then \
+		echo "✓ Assets directory exists"; \
+		ls -la app/public/build/; \
+	else \
+		echo "✗ Assets directory not found. Run 'make assets-build' first"; \
+	fi
+
+assets-clean: ## Clean built assets
+	@echo "Cleaning built assets..."
+	rm -rf app/public/build
+	@echo "✓ Assets cleaned"
 
 # SSH Tunnel Commands
 tunnel-status: ## Check SSH tunnel status
-	docker-compose exec ssh-tunnel ps aux | grep ssh
+	$(COMPOSE_DEV) exec ssh-tunnel ps aux | grep ssh
 
 tunnel-restart: ## Restart SSH tunnels
-	docker-compose restart ssh-tunnel
+	$(COMPOSE_DEV) restart ssh-tunnel
 
 tunnel-logs: ## Show SSH tunnel logs
-	docker-compose logs -f ssh-tunnel
+	$(COMPOSE_DEV) logs -f ssh-tunnel
 
 # Monitoring Commands
 monitor-start: ## Start monitoring stack
@@ -171,17 +236,15 @@ update: ## Update application code
 
 # Utility Commands
 ps: ## Show running containers
-	docker-compose ps
+	$(COMPOSE_DEV) ps
 
 stats: ## Show container resource usage
 	docker stats --no-stream
 
 clean: ## Clean everything (containers, volumes, images)
-	@echo "Warning: This will remove all containers, volumes, and images!"
-	@read -p "Are you sure? [y/N]: " confirm; \
-	if [ "$$confirm" = "y" ]; then \
-		docker-compose down -v --rmi all; \
-	fi
+	$(COMPOSE_DEV) down -v --remove-orphans
+	docker system prune -f
+	docker volume prune -f
 
 backup-all: ## Complete system backup
 	./scripts/backup.sh full
