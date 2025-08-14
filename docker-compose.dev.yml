@@ -11,11 +11,14 @@ services:
       XDEBUG_SESSION: 1
     volumes:
       - ./app:/var/www/html
+      - ./app/storage:/var/www/html/storage
+      - ./app/bootstrap/cache:/var/www/html/bootstrap/cache
+      - php_sessions:/var/www/html/storage/framework/sessions
+      - php_cache:/var/www/html/storage/framework/cache
       - ~/.composer:/home/dgsuc_user/.composer
     ports:
       - "9003:9003"  # Xdebug port
-    entrypoint: ["/usr/local/bin/fix-permissions.sh"]
-    command: ["php-fpm", "-F"]
+    entrypoint: ["/usr/local/bin/fix-permissions.sh", "php-fpm", "-F"]
 
   nginx:
     ports:

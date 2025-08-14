@@ -160,6 +160,19 @@ for ENV in $ENVIRONMENTS; do
         cp .env.example "$ENV_FILE"
         log_warn "Por favor configura $ENV_FILE antes de continuar"
         
+        # Generar APP_KEY si no existe o está vacía
+        if ! grep -q "^APP_KEY=base64:" "$ENV_FILE" 2>/dev/null; then
+            if command -v openssl &> /dev/null; then
+                APP_KEY="base64:$(openssl rand -base64 32)"
+                if grep -q "^APP_KEY=" "$ENV_FILE"; then
+                    sed -i "s|^APP_KEY=.*|APP_KEY=$APP_KEY|" "$ENV_FILE"
+                else
+                    echo "APP_KEY=$APP_KEY" >> "$ENV_FILE"
+                fi
+                log_info "APP_KEY generada para $ENV_FILE"
+            fi
+        fi
+        
         # Configuración interactiva para valores críticos
         if [ "$ENV" = "prod" ]; then
             echo ""
@@ -209,6 +222,24 @@ else
     log_info ".env enlazado a .env.$PRIMARY_ENV"
 fi
 
+# Verificar y generar APP_KEY para archivos existentes
+log_step "Verificando claves de aplicación..."
+for ENV_FILE in .env.dev .env.prod; do
+    if [ -f "$ENV_FILE" ]; then
+        if ! grep -q "^APP_KEY=base64:" "$ENV_FILE" 2>/dev/null; then
+            if command -v openssl &> /dev/null; then
+                APP_KEY="base64:$(openssl rand -base64 32)"
+                if grep -q "^APP_KEY=" "$ENV_FILE"; then
+                    sed -i "s|^APP_KEY=.*|APP_KEY=$APP_KEY|" "$ENV_FILE"
+                else
+                    echo "APP_KEY=$APP_KEY" >> "$ENV_FILE"
+                fi
+                log_info "APP_KEY generada para $ENV_FILE"
+            fi
+        fi
+    fi
+done
+
 # Sincronizar archivos .env después de crearlos
 log_step "Sincronizando archivos de configuración..."
 sync_env_files
@@ -217,10 +248,29 @@ echo ""
 
 # Generación de clave de Laravel si es necesario
 if [ -f "./app/.env" ]; then
-    if grep -q "APP_KEY=$" "./app/.env" || grep -q "APP_KEY=\s*$" "./app/.env"; then
+    # Verificar si APP_KEY está vacía o no existe
+    if ! grep -q "^APP_KEY=base64:" "./app/.env" 2>/dev/null; then
         log_step "Generando clave de aplicación Laravel..."
-        docker run --rm -v $(pwd)/app:/app -w /app php:8.3-cli php artisan key:generate
-        log_info "Clave de aplicación generada"
+        
+        # Generar una clave base64 válida usando openssl
+        if command -v openssl &> /dev/null; then
+            APP_KEY="base64:$(openssl rand -base64 32)"
+            
+            # Actualizar el archivo .env con la nueva clave
+            if grep -q "^APP_KEY=" "./app/.env"; then
+                # Reemplazar línea existente
+                sed -i "s|^APP_KEY=.*|APP_KEY=$APP_KEY|" "./app/.env"
+            else
+                # Agregar nueva línea
+                echo "APP_KEY=$APP_KEY" >> "./app/.env"
+            fi
+            
+            log_info "Clave de aplicación generada: ${APP_KEY:0:20}..."
+        else
+            log_warn "OpenSSL no está disponible. Deberás generar APP_KEY manualmente con: php artisan key:generate"
+        fi
+    else
+        log_info "Clave de aplicación Laravel ya está configurada"
     fi
 fi
 
