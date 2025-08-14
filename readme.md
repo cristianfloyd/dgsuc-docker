@@ -39,8 +39,9 @@ Este comando realizará:
 - ✅ Verificación de prerequisitos
 - ✅ Clonado de la aplicación Laravel
 - ✅ Configuración de variables de entorno
+- ✅ Sincronización automática de credenciales DB
 - ✅ Build de imágenes Docker
-- ✅ Inicialización de base de datos
+- ✅ Inicialización de base de datos con credenciales del .env
 
 ### 3️⃣ Iniciar servicios
 
@@ -94,7 +95,7 @@ nano .env.prod
 Variables críticas a configurar:
 
 ```env
-# Base de datos principal
+# Base de datos principal (se sincroniza automáticamente con Laravel)
 DB_DATABASE=dgsuc_app
 DB_USERNAME=dgsuc_user
 DB_PASSWORD=contraseña_segura
@@ -115,16 +116,25 @@ CERTBOT_DOMAIN=dgsuc.uba.ar
 GRAFANA_PASSWORD=grafana_admin_password
 ```
 
+> **⚠️ Importante**: Las credenciales de base de datos se sincronizan automáticamente entre el `.env` del directorio raíz y `app/.env` durante la inicialización. PostgreSQL utilizará estas credenciales para crear los usuarios correspondientes.
+
 ### Paso 3: Configurar aplicación Laravel
 
 ```bash
 # Clonar y configurar aplicación
 make clone
 
-# Configurar permisos
+# El archivo .env se copia automáticamente durante make init
+# Si necesitas sincronizar manualmente:
+cp .env ./app/.env
+
+# Configurar permisos (automático en contenedores)
+make fix-permissions          # O usar comandos tradicionales:
 chmod -R 775 ./app/storage
 chmod -R 775 ./app/bootstrap/cache
 ```
+
+> **📝 Nota**: El proceso de inicialización ahora copia automáticamente el `.env` del directorio raíz a `app/.env` y verifica que las credenciales de base de datos estén sincronizadas. Los permisos se gestionan con `dgsuc_user:www-data`.
 
 ### Paso 4: SSL/TLS
 
@@ -156,7 +166,7 @@ docker-compose ps
 
 | Servicio | Puerto | Descripción |
 |----------|--------|-------------|
-| **app** | 9000 | PHP-FPM 8.3 con Laravel |
+| **app** | 9000 | PHP-FPM 8.3 con Laravel (dgsuc_user:www-data) |
 | **nginx** | 80/443 | Servidor web con SSL |
 | **postgres** | 5432 | PostgreSQL 17 |
 | **redis** | 6379 | Cache y sesiones |
@@ -236,6 +246,25 @@ make db-seed          # Ejecutar seeders
 make db-fresh         # Fresh con seeds
 make db-backup        # Crear backup
 make db-restore       # Restaurar backup
+```
+
+### Gestión de Permisos
+
+```bash
+# Verificar permisos actuales
+make check-permissions            # Desarrollo
+make prod-check-permissions       # Producción
+
+# Corregir permisos automáticamente
+make fix-permissions              # Manual (dgsuc_user:www-data)
+make fix-permissions-script       # Script integrado del contenedor
+make prod-fix-permissions         # Producción
+
+# Probar directorios escribibles
+make check-writable
+
+# Corregir desde host (último recurso)
+make host-fix-permissions
 ```
 
 ### Cache y Optimización
@@ -582,18 +611,28 @@ deploy:
       memory: 8G
 ```
 
-### Problema: Permisos en storage
+### Problema: Permisos en storage y cache
 
 ```bash
-# Desde el host
-sudo chown -R 1000:1000 ./app/storage
-chmod -R 775 ./app/storage
+# RECOMENDADO: Usar comandos make
+make check-permissions        # Verificar estado actual
+make fix-permissions          # Corregir automáticamente
+make check-writable          # Confirmar que funciona
 
-# O desde el contenedor
+# Alternativa: Script integrado del contenedor
+make fix-permissions-script
+
+# Desde el host (último recurso)
+sudo chown -R 1000:1000 ./app/storage ./app/bootstrap/cache
+chmod -R 775 ./app/storage ./app/bootstrap/cache
+
+# Desde el contenedor manualmente
 make shell
-chown -R dgsuc_user:www-data storage
-chmod -R 775 storage
+chown -R dgsuc_user:www-data storage bootstrap/cache
+chmod -R 775 storage bootstrap/cache
 ```
+
+> **⚠️ Nota**: El sistema usa `dgsuc_user:www-data` (UID 1000) para compatibilidad entre PHP-FPM y Nginx.
 
 ## 📊 Monitoreo
 
@@ -700,6 +739,43 @@ make prod-build
 
 # Restart servicios
 make prod-restart
+```
+
+## 🔧 Gestión de Credenciales de Base de Datos
+
+### Sincronización Automática
+
+El sistema ahora maneja automáticamente la sincronización de credenciales entre Docker y Laravel:
+
+- **PostgreSQL**: Utiliza variables del `.env` (`DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE`)
+- **Laravel**: Usa el mismo `.env` copiado automáticamente a `app/.env`
+- **Usuarios creados automáticamente**:
+  - Usuario principal: `${DB_USERNAME}` con password `${DB_PASSWORD}`
+  - Usuario readonly: `${DB_USERNAME}_readonly` con password `${DB_PASSWORD}_readonly`
+
+### Verificar Sincronización
+
+```bash
+# Verificar credenciales en uso
+grep "DB_" .env
+grep "DB_" ./app/.env
+
+# Si están desincronizadas, el script init.sh lo detectará automáticamente
+make init
+```
+
+### Cambiar Credenciales
+
+```bash
+# 1. Editar .env principal
+nano .env
+
+# 2. Sincronizar con Laravel
+cp .env ./app/.env
+
+# 3. Recrear base de datos
+make dev-clean
+make dev
 ```
 
 ## 📝 Variables de Entorno Importantes

@@ -10,12 +10,21 @@ help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
 	@echo 'Available targets:'
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo ''
 	@echo '📚 Documentation:'
 	@echo '  📖 README.md                    - Documentación principal'
 	@echo '  🎨 docs/ASSETS_MANAGEMENT.md    - Gestión de assets'
 	@echo '  🚀 app/PRODUCTION_DEPLOYMENT_GUIDE.md - Guía de producción'
+	@echo ''
+	@echo '🔧 Permission Commands:'
+	@echo '  check-permissions            - Check Laravel file permissions'
+	@echo '  fix-permissions              - Fix Laravel file permissions (dgsuc_user:www-data)'
+	@echo '  fix-permissions-script       - Use built-in permission fix script'
+	@echo '  check-writable               - Test writable directories'
+	@echo '  prod-check-permissions       - Check permissions (production)'
+	@echo '  prod-fix-permissions         - Fix permissions (production)'
+	@echo '  host-fix-permissions         - Fix permissions from host'
 
 # Development Commands
 dev: ## Start development environment
@@ -126,6 +135,10 @@ db-seed: ## Seed the database
 db-fresh: ## Fresh database with seeds
 	$(COMPOSE_DEV) exec app php artisan migrate:fresh --seed
 
+db-test: ## Test database connection
+	@echo "Testing database connection..."
+	$(COMPOSE_DEV) exec app php artisan db:show
+
 db-backup: ## Backup database
 	./scripts/backup.sh database
 
@@ -143,6 +156,63 @@ composer: ## Run composer command (usage: make composer cmd="require package")
 composer-install: ## Install Composer dependencies
 	@echo "Installing Composer dependencies..."
 	$(COMPOSE_DEV) exec app composer install
+
+# Permission Management
+check-permissions: ## Check Laravel file permissions in container
+	@echo "Checking Laravel file permissions..."
+	$(COMPOSE_DEV) exec app sh -c "echo '=== Storage permissions ==='; ls -la /var/www/html/storage"
+	$(COMPOSE_DEV) exec app sh -c "echo '=== Bootstrap cache permissions ==='; ls -la /var/www/html/bootstrap/cache"
+	$(COMPOSE_DEV) exec app sh -c "echo '=== .env file permissions ==='; ls -la /var/www/html/.env"
+	$(COMPOSE_DEV) exec app sh -c "echo '=== Current user/group ==='; id"
+	$(COMPOSE_DEV) exec app sh -c "echo '=== Web server user ==='; ps aux | grep nginx || ps aux | grep apache"
+
+fix-permissions: ## Fix Laravel file permissions in container
+	@echo "Fixing Laravel file permissions..."
+	$(COMPOSE_DEV) exec app sh -c "chown -R dgsuc_user:www-data /var/www/html/storage"
+	$(COMPOSE_DEV) exec app sh -c "chown -R dgsuc_user:www-data /var/www/html/bootstrap/cache"
+	$(COMPOSE_DEV) exec app sh -c "chmod -R 775 /var/www/html/storage"
+	$(COMPOSE_DEV) exec app sh -c "chmod -R 775 /var/www/html/bootstrap/cache"
+	$(COMPOSE_DEV) exec app sh -c "chmod 644 /var/www/html/.env"
+	@echo "Permissions fixed!"
+
+check-writable: ## Test if Laravel directories are writable
+	@echo "Testing writable directories..."
+	$(COMPOSE_DEV) exec app sh -c "touch /var/www/html/storage/test_write.tmp && rm /var/www/html/storage/test_write.tmp && echo '✓ storage/ is writable' || echo '✗ storage/ is NOT writable'"
+	$(COMPOSE_DEV) exec app sh -c "touch /var/www/html/bootstrap/cache/test_write.tmp && rm /var/www/html/bootstrap/cache/test_write.tmp && echo '✓ bootstrap/cache/ is writable' || echo '✗ bootstrap/cache/ is NOT writable'"
+
+fix-permissions-script: ## Use built-in permission fix script (development)
+	@echo "Running built-in permission fix script..."
+	$(COMPOSE_DEV) exec app /usr/local/bin/fix-permissions.sh
+	@echo "Built-in script executed!"
+
+# Production Permission Commands
+prod-check-permissions: ## Check Laravel file permissions in production container
+	@echo "Checking Laravel file permissions (production)..."
+	$(COMPOSE_PROD) exec app sh -c "echo '=== Storage permissions ==='; ls -la /var/www/html/storage"
+	$(COMPOSE_PROD) exec app sh -c "echo '=== Bootstrap cache permissions ==='; ls -la /var/www/html/bootstrap/cache"
+	$(COMPOSE_PROD) exec app sh -c "echo '=== .env file permissions ==='; ls -la /var/www/html/.env"
+	$(COMPOSE_PROD) exec app sh -c "echo '=== Current user/group ==='; id"
+
+prod-fix-permissions: ## Fix Laravel file permissions in production container
+	@echo "Fixing Laravel file permissions (production)..."
+	$(COMPOSE_PROD) exec app sh -c "chown -R dgsuc_user:www-data /var/www/html/storage"
+	$(COMPOSE_PROD) exec app sh -c "chown -R dgsuc_user:www-data /var/www/html/bootstrap/cache"
+	$(COMPOSE_PROD) exec app sh -c "chmod -R 775 /var/www/html/storage"
+	$(COMPOSE_PROD) exec app sh -c "chmod -R 775 /var/www/html/bootstrap/cache"
+	$(COMPOSE_PROD) exec app sh -c "chmod 600 /var/www/html/.env"  # Más restrictivo en producción
+	@echo "Production permissions fixed!"
+
+# Host Permission Commands (for when containers can't fix it)
+host-fix-permissions: ## Fix permissions from host (when container commands fail)
+	@echo "Fixing permissions from host..."
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		echo "Windows detected - permissions managed by Docker"; \
+	else \
+		sudo chown -R 1000:1000 ./app/storage ./app/bootstrap/cache; \
+		chmod -R 775 ./app/storage ./app/bootstrap/cache; \
+		chmod 644 ./app/.env; \
+		echo "Host permissions fixed!"; \
+	fi
 
 deps-install: ## Install all dependencies (Composer + npm)
 	@echo "Installing all dependencies..."
@@ -295,6 +365,46 @@ init: ## Initialize the environment
 update: ## Update application code
 	cd app && git pull && cd ..
 	@echo "Application updated. Run 'make dev' or 'make prod' to restart services."
+
+# Environment switching
+switch-to-dev: ## Switch to development environment
+	@echo "Switching to development environment..."
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		copy .env.dev .env; \
+		copy .env.dev app\\.env; \
+	else \
+		ln -sf .env.dev .env; \
+		cp .env.dev ./app/.env; \
+	fi
+	@echo "Environment switched to development (.env.dev)"
+
+switch-to-prod: ## Switch to production environment
+	@echo "Switching to production environment..."
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		copy .env.prod .env; \
+		copy .env.prod app\\.env; \
+	else \
+		ln -sf .env.prod .env; \
+		cp .env.prod ./app/.env; \
+	fi
+	@echo "Environment switched to production (.env.prod)"
+
+env-status: ## Show current environment configuration
+	@echo "Current environment status:"
+	@if [ -f ".env" ] && [ -L ".env" ]; then \
+		echo "  .env -> $$(readlink .env)"; \
+	elif [ -f ".env" ]; then \
+		echo "  .env exists (regular file)"; \
+	else \
+		echo "  .env not found"; \
+	fi
+	@if [ -f "./app/.env" ]; then \
+		echo "  app/.env exists"; \
+		echo "  DB_USERNAME=$$(grep '^DB_USERNAME=' ./app/.env | cut -d'=' -f2 2>/dev/null || echo 'not set')"; \
+		echo "  DB_DATABASE=$$(grep '^DB_DATABASE=' ./app/.env | cut -d'=' -f2 2>/dev/null || echo 'not set')"; \
+	else \
+		echo "  app/.env not found"; \
+	fi
 
 # Utility Commands
 ps: ## Show running containers

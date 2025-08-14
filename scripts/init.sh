@@ -97,11 +97,57 @@ else
     fi
 fi
 
+# Función para sincronizar archivos .env con el entorno específico
+sync_env_files() {
+    # Determinar qué archivo .env usar
+    local source_env_file
+    if [ -f ".env" ] && [ -L ".env" ]; then
+        # Si .env es un symlink, obtener el archivo real
+        source_env_file=$(readlink .env)
+    elif [ -f ".env" ]; then
+        source_env_file=".env"
+    else
+        log_warn "No se encontró archivo .env para sincronizar"
+        return 1
+    fi
+    
+    if [ -f "$source_env_file" ] && [ -d "./app" ]; then
+        if [ ! -f "./app/.env" ]; then
+            log_step "Copiando $source_env_file a la aplicación Laravel..."
+            cp "$source_env_file" ./app/.env
+            log_info "Archivo $source_env_file copiado a ./app/.env"
+        else
+            # Verificar si las credenciales de DB están sincronizadas
+            ROOT_DB_USER=$(grep "^DB_USERNAME=" "$source_env_file" | cut -d'=' -f2)
+            ROOT_DB_PASS=$(grep "^DB_PASSWORD=" "$source_env_file" | cut -d'=' -f2)
+            ROOT_DB_NAME=$(grep "^DB_DATABASE=" "$source_env_file" | cut -d'=' -f2)
+            
+            APP_DB_USER=$(grep "^DB_USERNAME=" ./app/.env | cut -d'=' -f2 2>/dev/null || echo "")
+            APP_DB_PASS=$(grep "^DB_PASSWORD=" ./app/.env | cut -d'=' -f2 2>/dev/null || echo "")
+            APP_DB_NAME=$(grep "^DB_DATABASE=" ./app/.env | cut -d'=' -f2 2>/dev/null || echo "")
+            
+            if [ "$ROOT_DB_USER" != "$APP_DB_USER" ] || [ "$ROOT_DB_PASS" != "$APP_DB_PASS" ] || [ "$ROOT_DB_NAME" != "$APP_DB_NAME" ]; then
+                log_warn "Las credenciales de base de datos no están sincronizadas"
+                echo "  Entorno ($source_env_file): DB_USERNAME=$ROOT_DB_USER, DB_DATABASE=$ROOT_DB_NAME"
+                echo "  App (./app/.env): DB_USERNAME=$APP_DB_USER, DB_DATABASE=$APP_DB_NAME"
+                read -p "¿Quieres sobrescribir ./app/.env con la configuración de $source_env_file? (y/N): " SYNC_ENV
+                if [[ $SYNC_ENV =~ ^[Yy]$ ]]; then
+                    cp "$source_env_file" ./app/.env
+                    log_info "Archivo .env sincronizado desde $source_env_file"
+                fi
+            else
+                log_info "Credenciales de base de datos ya están sincronizadas con $source_env_file"
+            fi
+        fi
+    fi
+}
+
 echo ""
 
 # Configuración de archivos de entorno
 log_title "Configuración del Entorno"
 
+# Crear archivos específicos del entorno si no existen
 for ENV in $ENVIRONMENTS; do
     ENV_FILE=".env.$ENV"
     
@@ -131,6 +177,37 @@ for ENV in $ENVIRONMENTS; do
         log_info "$ENV_FILE ya existe"
     fi
 done
+
+# Determinar el entorno principal y crear symlink .env
+if [[ " $ENVIRONMENTS " =~ " dev " ]]; then
+    PRIMARY_ENV="dev"
+elif [[ " $ENVIRONMENTS " =~ " prod " ]]; then
+    PRIMARY_ENV="prod"
+else
+    PRIMARY_ENV="dev"  # fallback
+fi
+
+log_step "Configurando .env principal para entorno: $PRIMARY_ENV"
+if [ -f ".env" ] && [ -L ".env" ]; then
+    rm .env  # Remover symlink existente
+elif [ -f ".env" ]; then
+    mv .env .env.backup  # Backup del archivo manual si existe
+    log_warn "Se hizo backup del .env existente como .env.backup"
+fi
+
+# Crear symlink .env -> .env.{entorno}
+if [ "$OS" = "Windows_NT" ]; then
+    # En Windows, copiar en lugar de symlink
+    cp ".env.$PRIMARY_ENV" .env
+    log_info ".env copiado desde .env.$PRIMARY_ENV (Windows)"
+else
+    ln -sf ".env.$PRIMARY_ENV" .env
+    log_info ".env enlazado a .env.$PRIMARY_ENV"
+fi
+
+# Sincronizar archivos .env después de crearlos
+log_step "Sincronizando archivos de configuración..."
+sync_env_files
 
 echo ""
 
