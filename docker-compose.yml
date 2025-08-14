@@ -59,8 +59,8 @@ services:
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_DATABASE: ${DB_DATABASE:-informes_app}
-      DB_USERNAME: ${DB_USERNAME:-informes_user}
+      DB_DATABASE: ${DB_DATABASE:-dgsuc_app}
+      DB_USERNAME: ${DB_USERNAME:-dgsuc_user}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_SCHEMA: suc_app
       REDIS_HOST: redis
@@ -112,8 +112,8 @@ services:
     container_name: dgsuc_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_DATABASE:-informes_app}
-      POSTGRES_USER: ${DB_USERNAME:-informes_user}
+      POSTGRES_DB: ${DB_DATABASE:-dgsuc_app}
+      POSTGRES_USER: ${DB_USERNAME:-dgsuc_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=es_AR.UTF-8"
     volumes:
@@ -125,7 +125,7 @@ services:
     ports:
       - "${DB_EXTERNAL_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-informes_user}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-dgsuc_user}"]
       interval: 10s
       timeout: 5s
       retries: 5

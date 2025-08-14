@@ -95,8 +95,8 @@ Variables críticas a configurar:
 
 ```env
 # Base de datos principal
-DB_DATABASE=informes_app
-DB_USERNAME=informes_user
+DB_DATABASE=dgsuc_app
+DB_USERNAME=dgsuc_user
 DB_PASSWORD=contraseña_segura
 
 # Redis Cache
@@ -555,7 +555,7 @@ docker-compose exec redis redis-cli monitor
 make clone
 
 # O manualmente
-./scripts/clone-app.sh https://github.com/cristianfloyd/informes-app.git
+./scripts/clone-app.sh https://github.com/cristianfloyd/dgsuc-app.git
 ```
 
 ### Problema: "Connection refused" a Redis
@@ -591,7 +591,7 @@ chmod -R 775 ./app/storage
 
 # O desde el contenedor
 make shell
-chown -R informes:informes storage
+chown -R dgsuc_user:www-data storage
 chmod -R 775 storage
 ```
 

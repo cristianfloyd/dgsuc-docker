@@ -37,8 +37,8 @@ case "$BACKUP_TYPE" in
         # Backup main database
         log_step "Backing up PostgreSQL database..."
         docker-compose exec -T postgres pg_dump \
-            -U ${DB_USERNAME:-informes_user} \
-            -d ${DB_DATABASE:-informes_app} \
+            -U ${DB_USERNAME:-dgsuc_user} \
+            -d ${DB_DATABASE:-dgsuc_app} \
             --no-owner \
             --no-acl \
             > "$BACKUP_DIR/db_${DATE}.sql"
@@ -100,8 +100,8 @@ case "$BACKUP_TYPE" in
         # Database
         log_step "Backing up database..."
         docker-compose exec -T postgres pg_dump \
-            -U ${DB_USERNAME:-informes_user} \
-            -d ${DB_DATABASE:-informes_app} \
+            -U ${DB_USERNAME:-dgsuc_user} \
+            -d ${DB_DATABASE:-dgsuc_app} \
             --no-owner \
             --no-acl \
             > "$BACKUP_DIR/full_db_${DATE}.sql"
@@ -149,8 +149,8 @@ EOF
         
         # Database only
         docker-compose exec -T postgres pg_dump \
-            -U ${DB_USERNAME:-informes_user} \
-            -d ${DB_DATABASE:-informes_app} \
+            -U ${DB_USERNAME:-dgsuc_user} \
+            -d ${DB_DATABASE:-dgsuc_app} \
             --no-owner \
             --no-acl \
             | gzip > "$BACKUP_DIR/${BACKUP_NAME}.sql.gz"

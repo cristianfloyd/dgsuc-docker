@@ -46,9 +46,9 @@ RUN pecl install redis && \
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Create application user
-RUN addgroup -g 1000 -S informes && \
-    adduser -u 1000 -S informes -G informes
+# Create application user (dgsuc_user) with www-data group
+RUN addgroup -g 1000 -S dgsuc_user && \
+    adduser -u 1000 -S dgsuc_user -G www-data
 
 # Production build stage
 FROM base AS production
@@ -63,7 +63,7 @@ COPY php.ini /usr/local/etc/php/conf.d/app.ini
 WORKDIR /var/www/html
 
 # Copy application files
-COPY --chown=informes:informes . .
+COPY --chown=dgsuc_user:www-data . .
 
 # Install PHP dependencies (production only)
 RUN composer install --no-dev --no-interaction --no-progress --optimize-autoloader && \
@@ -82,7 +82,7 @@ RUN php artisan config:cache && \
     php artisan event:cache
 
 # Set correct permissions
-RUN chown -R informes:informes /var/www/html && \
+RUN chown -R dgsuc_user:www-data /var/www/html && \
     chmod -R 755 /var/www/html && \
     chmod -R 775 /var/www/html/storage && \
     chmod -R 775 /var/www/html/bootstrap/cache
@@ -91,7 +91,7 @@ RUN chown -R informes:informes /var/www/html && \
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-USER informes
+USER dgsuc_user
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["php-fpm"]
@@ -118,7 +118,7 @@ WORKDIR /var/www/html
 # Fix storage permissions for Laravel
 RUN mkdir -p storage/logs storage/framework/{cache,sessions,views} bootstrap/cache && \
     chmod -R 775 storage bootstrap/cache && \
-    chown -R www-data:www-data storage bootstrap/cache
+    chown -R dgsuc_user:www-data storage bootstrap/cache
 
 # Add permission fix script for development
 COPY fix-permissions.sh /usr/local/bin/fix-permissions.sh

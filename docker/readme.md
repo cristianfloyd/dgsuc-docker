@@ -92,8 +92,8 @@ Esta solución Docker proporciona un ambiente completo y escalable para el Siste
 ### 1. Clonar el Repositorio
 
 ```bash
-git clone https://github.com/cristianfloyd/informes-app.git
-cd informes-app
+git clone https://github.com/cristianfloyd/dgsuc-app.git
+cd dgsuc-app
 ```
 
 ### 2. Configuración Inicial
@@ -179,8 +179,8 @@ APP_KEY=base64:generar_con_php_artisan_key:generate
 
 # Base de Datos Principal
 DB_HOST=postgres
-DB_DATABASE=informes_app
-DB_USERNAME=informes_user
+DB_DATABASE=dgsuc_app
+DB_USERNAME=dgsuc_user
 DB_PASSWORD=contraseña_segura_aqui
 DB_SCHEMA=suc_app
 
@@ -188,7 +188,7 @@ DB_SCHEMA=suc_app
 DB2_HOST=127.0.0.1
 DB2_PORT=5433
 DB2_DATABASE=mapuche_prod
-DB2_USERNAME=informes_readonly
+DB2_USERNAME=dgsuc_readonly
 DB2_PASSWORD=contraseña_readonly
 
 # SSH Tunnel Configuration
@@ -239,10 +239,10 @@ docker-compose up -d postgres
 sleep 10
 
 # Crear esquemas
-docker-compose exec postgres psql -U informes_user -d informes_app -c "
+docker-compose exec postgres psql -U dgsuc_user -d dgsuc_app -c "
 CREATE SCHEMA IF NOT EXISTS suc_app;
-CREATE SCHEMA IF NOT EXISTS informes_app;
-ALTER DATABASE informes_app SET search_path = 'suc_app,informes_app,public';
+CREATE SCHEMA IF NOT EXISTS dgsuc_app;
+ALTER DATABASE dgsuc_app SET search_path = 'suc_app,dgsuc_app,public';
 "
 
 # Ejecutar migraciones
@@ -550,7 +550,7 @@ Para soporte y consultas:
 
 - **Email**: carenas@uba.ar
 - **Documentación**: https://docs.dgsuc.uba.ar
-- **Issues**: https://github.com/cristianfloyd/informes-app/issues
+- **Issues**: https://github.com/cristianfloyd/dgsuc-app/issues
 
 ## 📄 Licencia
 

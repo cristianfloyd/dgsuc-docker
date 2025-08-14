@@ -39,9 +39,9 @@ RUN docker-php-ext-configure gd \
 RUN pecl install redis && \
     docker-php-ext-enable redis
 
-# Create application user
-RUN addgroup -g 1000 -S informes && \
-    adduser -u 1000 -S informes -G informes
+# Create application user (dgsuc_user) with www-data group
+RUN addgroup -g 1000 -S dgsuc_user && \
+    adduser -u 1000 -S dgsuc_user -G www-data
 
 # Copy supervisor configuration
 COPY worker.conf /etc/supervisor/conf.d/supervisord.conf
@@ -53,9 +53,9 @@ WORKDIR /var/www/html
 
 # Create log directory
 RUN mkdir -p /var/log/supervisor && \
-    chown -R informes:informes /var/log/supervisor
+    chown -R dgsuc_user:www-data /var/log/supervisor
 
-USER informes
+USER dgsuc_user
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

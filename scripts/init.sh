@@ -81,7 +81,7 @@ log_title "Configuración de la Aplicación"
 
 if [ ! -d "./app" ]; then
     read -p "Ingresa la URL del repositorio Git (o presiona Enter para el predeterminado): " REPO_URL
-    REPO_URL=${REPO_URL:-"https://github.com/cristianfloyd/informes-app.git"}
+    REPO_URL=${REPO_URL:-"https://github.com/cristianfloyd/dgsuc-app.git"}
     
     read -p "Ingresa el nombre de la rama (predeterminado: main): " BRANCH
     BRANCH=${BRANCH:-"main"}
@@ -262,7 +262,7 @@ if [[ ! $INIT_DB =~ ^[Nn]$ ]]; then
     
     # La base de datos se inicializa automáticamente a través del script init.sql
     # Solo verificamos que esté accesible
-    if docker-compose exec -T postgres psql -U informes_user -d informes_app -c "SELECT 1;" > /dev/null 2>&1; then
+    if docker-compose exec -T postgres psql -U dgsuc_user -d dgsuc_app -c "SELECT 1;" > /dev/null 2>&1; then
         log_info "Base de datos inicializada y accesible"
     else
         log_warn "Base de datos no completamente accesible, pero se inicializará automáticamente"

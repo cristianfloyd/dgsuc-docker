@@ -11,7 +11,7 @@ services:
       XDEBUG_SESSION: 1
     volumes:
       - ./app:/var/www/html
-      - ~/.composer:/home/informes/.composer
+      - ~/.composer:/home/dgsuc_user/.composer
     ports:
       - "9003:9003"  # Xdebug port
     entrypoint: ["/usr/local/bin/fix-permissions.sh"]
@@ -29,7 +29,7 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: informes_app
+      POSTGRES_DB: dgsuc_app
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -57,7 +57,7 @@ services:
     environment:
       PMA_HOST: postgres
       PMA_PORT: 5432
-      PMA_USER: ${DB_USERNAME:-informes_user}
+      PMA_USER: ${DB_USERNAME:-dgsuc_user}
       PMA_PASSWORD: ${DB_PASSWORD}
     ports:
       - "8090:80"
