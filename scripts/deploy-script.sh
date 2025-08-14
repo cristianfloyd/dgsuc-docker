@@ -1,17 +1,17 @@
 #!/bin/bash
 set -e
 
-# Colors for output
+# Definición de códigos de color ANSI para la interfaz de línea de comandos
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m' # Sin Color
 
-# Configuration
+# Configuración de variables de entorno y archivos de composición
 ENVIRONMENT=${1:-production}
 COMPOSE_FILES="-f docker-compose.yml"
 
-# Functions
+# Funciones de logging para estandarizar la salida de mensajes
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
 }
@@ -24,7 +24,7 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Check environment
+# Validación y configuración del entorno de despliegue
 if [ "$ENVIRONMENT" == "production" ]; then
     COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.prod.yml"
     ENV_FILE=".env.prod"
@@ -38,54 +38,54 @@ else
     exit 1
 fi
 
-log_info "Deploying DGSUC System - Environment: $ENVIRONMENT"
+log_info "Desplegando Sistema DGSUC - Entorno: $ENVIRONMENT"
 
-# Check prerequisites
-log_info "Checking prerequisites..."
+# Verificación de dependencias del sistema requeridas
+log_info "Verificando prerrequisitos..."
 
 if ! command -v docker &> /dev/null; then
-    log_error "Docker is not installed"
+    log_error "Docker no está instalado"
     exit 1
 fi
 
 if ! command -v docker-compose &> /dev/null; then
-    log_error "Docker Compose is not installed"
+    log_error "Docker Compose no está instalado"
     exit 1
 fi
 
-# Check environment file
+# Validación de archivo de configuración de entorno
 if [ ! -f "$ENV_FILE" ]; then
-    log_error "Environment file $ENV_FILE not found"
-    log_info "Creating from example..."
+    log_error "Archivo de entorno $ENV_FILE no encontrado"
+    log_info "Creando desde plantilla..."
     cp .env.docker.example $ENV_FILE
-    log_warn "Please configure $ENV_FILE before continuing"
+    log_warn "Por favor configura $ENV_FILE antes de continuar"
     exit 1
 fi
 
-# Load environment
+# Carga de variables de entorno desde archivo de configuración
 export $(cat $ENV_FILE | grep -v '^#' | xargs)
 export BUILD_TARGET
 
-# Pre-deployment backup (production only)
+# Creación de respaldo pre-despliegue (solo para producción)
 if [ "$ENVIRONMENT" == "production" ]; then
-    log_info "Creating pre-deployment backup..."
+    log_info "Creando respaldo pre-despliegue..."
     ./scripts/backup.sh pre-deploy
 fi
 
-# Pull latest code
-log_info "Pulling latest code..."
+# Sincronización del código fuente desde el repositorio remoto
+log_info "Sincronizando código fuente..."
 git pull origin main
 
-# Build assets (both environments)
+# Compilación de assets frontend (ambos entornos)
 if [ "$ENVIRONMENT" == "production" ]; then
-    log_info "Building production assets..."
+    log_info "Compilando assets de producción..."
     docker run --rm \
         -v "$(pwd)/app:/var/www/html" \
         -w /var/www/html \
         node:18-alpine \
         sh -c "npm install --production && npm run build"
 elif [ "$ENVIRONMENT" == "development" ]; then
-    log_info "Building development assets..."
+    log_info "Compilando assets de desarrollo..."
     docker run --rm \
         -v "$(pwd)/app:/var/www/html" \
         -w /var/www/html \
@@ -93,67 +93,70 @@ elif [ "$ENVIRONMENT" == "development" ]; then
         sh -c "npm install && npm run build"
 fi
 
-# Build images
-log_info "Building Docker images..."
+# Construcción de imágenes Docker sin caché
+log_info "Construyendo imágenes Docker..."
 docker-compose $COMPOSE_FILES build --no-cache
 
-# Stop current containers
-log_info "Stopping current containers..."
+# Detención de contenedores actuales
+log_info "Deteniendo contenedores actuales..."
 docker-compose $COMPOSE_FILES down
 
-# Start database and redis first
-log_info "Starting infrastructure services..."
+# Inicialización de servicios de infraestructura
+log_info "Iniciando servicios de infraestructura..."
 docker-compose $COMPOSE_FILES up -d postgres redis ssh-tunnel
 
-# Wait for database
-log_info "Waiting for database to be ready..."
+# Espera para estabilización de la base de datos
+log_info "Esperando que la base de datos esté lista..."
 sleep 10
 
-# Run migrations
-log_info "Running database migrations..."
+# Ejecución de migraciones de base de datos
+log_info "Ejecutando migraciones de base de datos..."
 docker-compose $COMPOSE_FILES run --rm app php artisan migrate --force
 
-# Clear and rebuild caches
-log_info "Clearing caches..."
+# Limpieza y reconstrucción de cachés de Laravel
+log_info "Limpiando cachés..."
 docker-compose $COMPOSE_FILES run --rm app php artisan cache:clear
 docker-compose $COMPOSE_FILES run --rm app php artisan config:clear
 docker-compose $COMPOSE_FILES run --rm app php artisan view:clear
 
+# Optimización de cachés para entorno de producción
 if [ "$ENVIRONMENT" == "production" ]; then
-    log_info "Building production caches..."
+    log_info "Construyendo cachés de producción..."
     docker-compose $COMPOSE_FILES run --rm app php artisan config:cache
     docker-compose $COMPOSE_FILES run --rm app php artisan route:cache
     docker-compose $COMPOSE_FILES run --rm app php artisan view:cache
     docker-compose $COMPOSE_FILES run --rm app php artisan event:cache
 fi
 
-# Start all services
-log_info "Starting all services..."
+# Inicialización de todos los servicios de la aplicación
+log_info "Iniciando todos los servicios..."
 docker-compose $COMPOSE_FILES up -d
 
-# Wait for services to be healthy
-log_info "Waiting for services to be healthy..."
+# Espera para estabilización de servicios
+log_info "Esperando que los servicios estén saludables..."
 sleep 10
 
-# Health check
-log_info "Running health checks..."
+# Verificación de estado de salud de servicios
+log_info "Ejecutando verificaciones de salud..."
 SERVICES=("app" "nginx" "postgres" "redis" "ssh-tunnel")
 
+# Iteración para validar el estado de cada servicio
 for service in "${SERVICES[@]}"; do
     if docker-compose $COMPOSE_FILES ps | grep -q "dgsuc_${service}.*Up"; then
-        log_info "✓ ${service} is running"
+        log_info "✓ ${service} está ejecutándose"
     else
-        log_error "✗ ${service} is not running"
+        log_error "✗ ${service} no está ejecutándose"
         exit 1
     fi
 done
 
-# SSL Certificate check (production only)
+# Verificación y generación de certificados SSL (solo para producción)
 if [ "$ENVIRONMENT" == "production" ]; then
-    log_info "Checking SSL certificates..."
+    log_info "Verificando certificados SSL..."
     
+    # Generación automática de certificados SSL con Let's Encrypt
     if [ ! -f "docker/nginx/certs/fullchain.pem" ]; then
-        log_warn "SSL certificate not found, generating with certbot..."
+        log_warn "Certificado SSL no encontrado, generando con certbot..."
         docker run -it --rm \
             -v "$(pwd)/docker/nginx/certs:/etc/letsencrypt" \
             -v "$(pwd)/public:/var/www/html" \
@@ -168,30 +171,31 @@ if [ "$ENVIRONMENT" == "production" ]; then
     fi
 fi
 
-# Run tests (development only)
+# Ejecución de pruebas automatizadas (solo para desarrollo)
 if [ "$ENVIRONMENT" == "development" ]; then
-    log_info "Running tests..."
+    log_info "Ejecutando pruebas..."
     docker-compose $COMPOSE_FILES run --rm app php artisan test
 fi
 
-# Show status
-log_info "Deployment complete! Services status:"
+# Visualización del estado final de servicios
+log_info "¡Despliegue completado! Estado de servicios:"
 docker-compose $COMPOSE_FILES ps
 
-# Show logs
-log_info "Recent logs:"
+# Visualización de logs recientes para diagnóstico
+log_info "Logs recientes:"
 docker-compose $COMPOSE_FILES logs --tail=20
 
-# Final message
+# Mensaje final con información de acceso
 if [ "$ENVIRONMENT" == "production" ]; then
-    log_info "Production deployment successful!"
-    log_info "Application is available at: https://dgsuc.uba.ar"
+    log_info "¡Despliegue de producción exitoso!"
+    log_info "Aplicación disponible en: https://dgsuc.uba.ar"
 else
-    log_info "Development deployment successful!"
-    log_info "Application is available at: http://localhost:8080"
+    log_info "¡Despliegue de desarrollo exitoso!"
+    log_info "Aplicación disponible en: http://localhost:8080"
     log_info "Mailhog: http://localhost:8025"
     log_info "PHPMyAdmin: http://localhost:8090"
 fi
 
-log_info "To view logs: docker-compose $COMPOSE_FILES logs -f [service_name]"
-log_info "To enter container: docker-compose $COMPOSE_FILES exec app bash"
+# Comandos útiles para administración post-despliegue
+log_info "Para ver logs: docker-compose $COMPOSE_FILES logs -f [nombre_servicio]"
+log_info "Para entrar al contenedor: docker-compose $COMPOSE_FILES exec app bash"

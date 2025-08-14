@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Colores para la salida de consola
+# Definición de códigos de color ANSI para la interfaz de línea de comandos
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -9,14 +9,14 @@ BLUE='\033[0;34m'
 MAGENTA='\033[0;35m'
 NC='\033[0m'
 
-# Funciones de logging
+# Funciones de logging para estandarizar la salida de mensajes
 log_info() { echo -e "${GREEN}✓${NC} $1"; }
 log_warn() { echo -e "${YELLOW}⚠${NC} $1"; }
 log_error() { echo -e "${RED}✗${NC} $1"; }
 log_step() { echo -e "${BLUE}→${NC} $1"; }
 log_title() { echo -e "${MAGENTA}═══ $1 ═══${NC}"; }
 
-# Encabezado del script
+# Presentación visual del script de inicialización
 clear
 echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
@@ -25,9 +25,10 @@ echo "║                 Initialization Script                     ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 
-# Verificación de prerrequisitos
+# Validación de dependencias del sistema requeridas
 log_title "Verificación de Prerrequisitos"
 
+# Función para validar la disponibilidad de comandos en el PATH del sistema
 check_command() {
     if command -v $1 &> /dev/null; then
         log_info "$1 está instalado ($(command -v $1))"
@@ -38,19 +39,22 @@ check_command() {
     fi
 }
 
+# Contador de dependencias faltantes para control de flujo
 MISSING_DEPS=0
 
+# Validación de herramientas esenciales para el entorno Docker
 check_command docker || MISSING_DEPS=1
 check_command docker-compose || MISSING_DEPS=1
 check_command git || MISSING_DEPS=1
 check_command make || log_warn "make no está instalado (opcional pero recomendado)"
 
+# Verificación de integridad de dependencias antes de continuar
 if [ $MISSING_DEPS -eq 1 ]; then
     log_error "Faltan dependencias requeridas. Por favor instálalas primero."
     exit 1
 fi
 
-# Verificación del daemon de Docker
+# Verificación del estado del servicio Docker daemon
 if ! docker info &> /dev/null; then
     log_error "El daemon de Docker no está ejecutándose"
     exit 1
