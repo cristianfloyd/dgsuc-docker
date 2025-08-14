@@ -27,7 +27,7 @@ services:
 
   postgres:
     ports:
-      - "5432:5432"
+      - "7432:5432"
     environment:
       POSTGRES_DB: dgsuc_app
     volumes:
@@ -36,7 +36,7 @@ services:
 
   redis:
     ports:
-      - "6379:6379"
+      - "6380:6379"
     command: redis-server --appendonly yes
 
   # Development tools
