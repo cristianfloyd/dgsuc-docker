@@ -54,3 +54,4 @@ ssh-keys/mapuche_ed25519
 ssh-keys/mapuche_ed25519.pub
 ssh-keys/mapuchedbprod.key.old
 ssh-keys/mapuchedbprod.key.pub.old
+.env.backup
