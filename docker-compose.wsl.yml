@@ -1,20 +1,44 @@
-# Docker Compose override for WSL/Windows
-# Use this file when running from WSL: docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.wsl.yml up -d
+# Docker Compose optimizado para WSL2 - Performance Mejorado
+# Uso recomendado desde WSL: docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.wsl.yml up -d
+#
+# IMPORTANTE: Para máximo rendimiento, ejecuta el script de migración:
+# ./scripts/migrate-to-wsl.sh
+#
+# Este archivo incluye optimizaciones específicas para WSL2:
+# - Cache modes optimizados (cached, delegated)
+# - Volúmenes nombrados para mejor performance
+# - Configuraciones de memoria y OPcache
+# - Prevención de polling innecesario
 
 services:
   app:
     volumes:
-      # WSL-specific absolute paths
-      - /mnt/d/dgsuc-docker/app:/var/www/html
-      - /mnt/d/dgsuc-docker/app/storage:/var/www/html/storage
-      - /mnt/d/dgsuc-docker/app/bootstrap/cache:/var/www/html/bootstrap/cache
+      # Optimización: usar rutas relativas con cache mode para mejor performance
+      - ./app:/var/www/html:cached
+      - ./app/storage:/var/www/html/storage:delegated
+      - ./app/bootstrap/cache:/var/www/html/bootstrap/cache:delegated
+      # Volúmenes nombrados para máximo rendimiento en directorios con muchas operaciones
       - php_sessions:/var/www/html/storage/framework/sessions
       - php_cache:/var/www/html/storage/framework/cache
+      - composer_cache:/home/dgsuc_user/.composer
+    environment:
+      # Optimizaciones de memoria para WSL2
+      - COMPOSER_MEMORY_LIMIT=-1
+      - PHP_MEMORY_LIMIT=512M
+      # Optimizaciones de OPcache para desarrollo
+      - OPcache.enable=1
+      - OPcache.memory_consumption=256
+      - OPcache.max_accelerated_files=20000
+      - OPcache.revalidate_freq=0
+      - OPcache.validate_timestamps=1
+      # Variables para indicar entorno WSL
+      - WSL_ENVIRONMENT=true
+      - XDEBUG_CONFIG=client_host=172.17.0.1
       
   nginx:
     volumes:
-      # WSL-specific absolute paths for nginx
-      - /mnt/d/dgsuc-docker/app:/var/www/html:ro
+      # Solo archivos estáticos necesarios con cache optimizado
+      - ./app/public:/var/www/html/public:cached,ro
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/sites:/etc/nginx/sites-available:ro
       - ./docker/nginx/certs:/etc/nginx/certs:ro
@@ -22,18 +46,50 @@ services:
       
   workers:
     volumes:
-      # WSL-specific absolute paths for workers
-      - /mnt/d/dgsuc-docker/app:/var/www/html
-      - /mnt/d/dgsuc-docker/app/storage:/var/www/html/storage
-      - /mnt/d/dgsuc-docker/app/bootstrap/cache:/var/www/html/bootstrap/cache
+      # Misma optimización que app para consistencia
+      - ./app:/var/www/html:cached
+      - ./app/storage:/var/www/html/storage:delegated
+      - ./app/bootstrap/cache:/var/www/html/bootstrap/cache:delegated
       - php_sessions:/var/www/html/storage/framework/sessions
       - php_cache:/var/www/html/storage/framework/cache
+    environment:
+      - WSL_ENVIRONMENT=true
+      - COMPOSER_MEMORY_LIMIT=-1
       
   scheduler:
     volumes:
-      # WSL-specific absolute paths for scheduler
-      - /mnt/d/dgsuc-docker/app:/var/www/html
-      - /mnt/d/dgsuc-docker/app/storage:/var/www/html/storage
-      - /mnt/d/dgsuc-docker/app/bootstrap/cache:/var/www/html/bootstrap/cache
+      # Misma optimización que app para consistencia
+      - ./app:/var/www/html:cached
+      - ./app/storage:/var/www/html/storage:delegated
+      - ./app/bootstrap/cache:/var/www/html/bootstrap/cache:delegated
       - php_sessions:/var/www/html/storage/framework/sessions
       - php_cache:/var/www/html/storage/framework/cache
+    environment:
+      - WSL_ENVIRONMENT=true
+
+  # Servicio optimizado para desarrollo frontend con hot reload eficiente
+  node:
+    image: node:18-alpine
+    container_name: dgsuc_node_wsl
+    working_dir: /var/www/html
+    volumes:
+      - ./app:/var/www/html:cached
+      - node_modules_cache:/var/www/html/node_modules
+    networks:
+      - dgsuc_network
+    environment:
+      # Optimizaciones para file watching en WSL2
+      - CHOKIDAR_USEPOLLING=false  # Usar eventos nativos del filesystem
+      - WATCHPACK_POLLING=false    # Deshabilitar polling para webpack
+      - NODE_ENV=development
+      - WSL_ENVIRONMENT=true
+    command: sh -c "npm install && npm run dev || tail -f /dev/null"
+    profiles:
+      - frontend
+
+volumes:
+  # Volúmenes adicionales para cache de herramientas
+  composer_cache:
+    driver: local
+  node_modules_cache:
+    driver: local

@@ -61,6 +61,94 @@ if ! docker info &> /dev/null; then
 fi
 log_info "El daemon de Docker está ejecutándose"
 
+# Detección automática de entorno WSL y recomendaciones de performance
+log_title "Detección de Entorno"
+
+# Verificar si estamos en WSL
+if [[ -n "$WSL_DISTRO_NAME" ]]; then
+    log_info "Entorno WSL detectado: $WSL_DISTRO_NAME"
+    WSL_DETECTED=true
+    
+    # Verificar si el proyecto está en filesystem WSL o Windows
+    CURRENT_PATH=$(pwd)
+    if [[ "$CURRENT_PATH" == /mnt/* ]]; then
+        log_warn "El proyecto está en filesystem Windows (/mnt/...)"
+        echo ""
+        echo "🚀 RECOMENDACIÓN DE PERFORMANCE:"
+        echo "   Para obtener 50-80% mejor rendimiento, considera migrar a WSL:"
+        echo "   ./scripts/migrate-to-wsl.sh"
+        echo ""
+        read -p "¿Quieres ejecutar la migración a WSL ahora? (y/N): " RUN_WSL_MIGRATION
+        if [[ $RUN_WSL_MIGRATION =~ ^[Yy]$ ]]; then
+            if [ -f "./scripts/migrate-to-wsl.sh" ]; then
+                log_step "Ejecutando migración a WSL..."
+                chmod +x ./scripts/migrate-to-wsl.sh
+                ./scripts/migrate-to-wsl.sh
+                exit 0
+            else
+                log_error "Script de migración no encontrado"
+            fi
+        fi
+        USE_WSL_COMPOSE=true
+    else
+        log_info "Proyecto en filesystem WSL nativo (óptimo)"
+        USE_WSL_COMPOSE=true
+    fi
+elif [[ "$OS" == "Windows_NT" ]] || command -v wsl.exe &> /dev/null; then
+    log_warn "Entorno Windows detectado"
+    WSL_DETECTED=false
+    
+    # Verificar si WSL está disponible
+    if command -v wsl.exe &> /dev/null; then
+        echo ""
+        echo "🚀 OPTIMIZACIÓN DISPONIBLE:"
+        echo "   WSL está instalado en tu sistema. Para mejor performance:"
+        echo "   1. Abre PowerShell como Administrador"
+        echo "   2. Ejecuta: wsl"
+        echo "   3. Navega a: cd /mnt/$(echo $PWD | cut -d: -f1 | tr '[:upper:]' '[:lower:]')/$(echo $PWD | cut -d: -f2- | tr '\\' '/')"
+        echo "   4. Ejecuta: ./scripts/migrate-to-wsl.sh"
+        echo ""
+        echo "   Alternativamente, puedes usar volúmenes Docker para mejor rendimiento:"
+        echo "   - Esta configuración usará volúmenes internos de Docker"
+        echo "   - Mejora significativamente el rendimiento en Windows"
+        echo ""
+        read -p "¿Qué opción prefieres? (w)sl / (v)olumen Docker / (e)stándar: " WINDOWS_OPTION
+        case $WINDOWS_OPTION in
+            [Ww]*)
+                log_info "Configuración cancelada. Ejecuta desde WSL para mejor performance."
+                exit 0
+                ;;
+            [Vv]*)
+                log_info "Configurando para usar volúmenes Docker (optimizado para Windows)"
+                USE_DOCKER_VOLUME=true
+                ;;
+            *)
+                log_info "Continuando con configuración estándar"
+                USE_DOCKER_VOLUME=false
+                ;;
+        esac
+    else
+        echo ""
+        echo "💡 OPTIMIZACIÓN PARA WINDOWS:"
+        echo "   Se detectó Windows sin WSL. Para mejor rendimiento se usarán"
+        echo "   volúmenes internos de Docker en lugar de bind mounts."
+        echo ""
+        read -p "¿Usar volúmenes Docker para mejor rendimiento? (Y/n): " USE_VOLUMES
+        if [[ $USE_VOLUMES =~ ^[Nn]$ ]]; then
+            USE_DOCKER_VOLUME=false
+        else
+            USE_DOCKER_VOLUME=true
+            log_info "Configurando para usar volúmenes Docker (optimizado para Windows)"
+        fi
+    fi
+    USE_WSL_COMPOSE=false
+else
+    log_info "Entorno Linux/Unix detectado"
+    WSL_DETECTED=false
+    USE_WSL_COMPOSE=false
+    USE_DOCKER_VOLUME=false
+fi
+
 echo ""
 
 # Selección del entorno
@@ -360,14 +448,41 @@ log_title "Construyendo Imágenes Docker"
 for ENV in $ENVIRONMENTS; do
     log_step "Construyendo imágenes $ENV..."
     
+    # Determinar archivos compose a usar según entorno y detección WSL/Windows
+    COMPOSE_FILES="-f docker-compose.yml"
+    
     if [ "$ENV" = "dev" ]; then
-        BUILD_TARGET=development docker-compose -f docker-compose.yml -f docker-compose.dev.yml build
+        COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.dev.yml"
+        BUILD_TARGET=development
+        
+        # Agregar archivo WSL si aplica
+        if [ "$USE_WSL_COMPOSE" = true ]; then
+            COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.wsl.yml"
+            log_info "Usando configuración optimizada para WSL"
+        fi
     else
-        BUILD_TARGET=production docker-compose -f docker-compose.yml -f docker-compose.prod.yml build
+        COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.prod.yml"
+        BUILD_TARGET=production
     fi
+    
+    log_info "Archivos compose: $COMPOSE_FILES"
+    BUILD_TARGET=$BUILD_TARGET docker-compose $COMPOSE_FILES build
     
     if [ $? -eq 0 ]; then
         log_info "Imágenes $ENV construidas exitosamente"
+        
+        # Si usamos volúmenes Docker y es entorno dev, sincronizar código
+        if [ "$USE_DOCKER_VOLUME" = true ] && [ "$ENV" = "dev" ]; then
+            log_step "Sincronizando código al volumen Docker..."
+            if [ -f "./scripts/sync-to-volume.sh" ]; then
+                chmod +x ./scripts/sync-to-volume.sh
+                ./scripts/sync-to-volume.sh
+            elif [ -f "./scripts/sync-to-volume.bat" ]; then
+                ./scripts/sync-to-volume.bat
+            else
+                log_warn "Script de sincronización no encontrado"
+            fi
+        fi
     else
         log_error "Error al construir imágenes $ENV"
         exit 1
@@ -416,7 +531,15 @@ echo ""
 if [[ " $ENVIRONMENTS " =~ " dev " ]]; then
     echo "  Entorno de Desarrollo:"
     echo "    1. Revisar configuración: .env.dev"
-    echo "    2. Iniciar servicios: make dev"
+    if [ "$USE_WSL_COMPOSE" = true ]; then
+        echo "    2. Iniciar servicios (WSL optimizado): ./wsl-dev.sh start"
+        echo "       O manualmente: docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.wsl.yml up -d"
+    elif [ "$USE_DOCKER_VOLUME" = true ]; then
+        echo "    2. Iniciar servicios (Windows optimizado): make dev-windows"
+        echo "       Para sincronizar cambios: make sync-to-volume"
+    else
+        echo "    2. Iniciar servicios: make dev"
+    fi
     echo "    3. Acceder a la aplicación: http://localhost:8080"
     echo ""
 fi
@@ -430,10 +553,45 @@ if [[ " $ENVIRONMENTS " =~ " prod " ]]; then
 fi
 
 echo "  Comandos útiles:"
-echo "    • make help       - Mostrar todos los comandos disponibles"
-echo "    • make logs       - Ver logs"
-echo "    • make shell      - Entrar al contenedor"
-echo "    • make db-migrate - Ejecutar migraciones"
+if [ "$USE_WSL_COMPOSE" = true ]; then
+    echo "    • ./wsl-dev.sh help      - Mostrar comandos optimizados para WSL"
+    echo "    • ./wsl-dev.sh logs      - Ver logs"
+    echo "    • ./wsl-dev.sh shell     - Entrar al contenedor"
+    echo "    • ./wsl-dev.sh optimize  - Optimizar caches"
+    echo "    • make db-migrate        - Ejecutar migraciones"
+elif [ "$USE_DOCKER_VOLUME" = true ]; then
+    echo "    • make dev-windows       - Iniciar desarrollo (Windows optimizado)"
+    echo "    • make sync-to-volume    - Sincronizar cambios al volumen"
+    echo "    • make logs              - Ver logs"
+    echo "    • make dev-shell         - Entrar al contenedor"
+    echo "    • make db-migrate        - Ejecutar migraciones"
+else
+    echo "    • make help              - Mostrar todos los comandos disponibles"
+    echo "    • make logs              - Ver logs"
+    echo "    • make dev-shell         - Entrar al contenedor"
+    echo "    • make db-migrate        - Ejecutar migraciones"
+fi
 echo ""
 
+if [ "$WSL_DETECTED" = true ] && [[ "$CURRENT_PATH" == /mnt/* ]]; then
+    echo "  📈 Tip de Performance:"
+    echo "    Para mejor rendimiento, ejecuta: ./scripts/migrate-to-wsl.sh"
+    echo ""
+fi
+
 log_info "¡Inicialización completada!"
+
+# Mostrar información adicional según el entorno detectado
+if [ "$USE_WSL_COMPOSE" = true ]; then
+    echo ""
+    log_info "Configuración WSL optimizada aplicada para mejor performance"
+elif [ "$USE_DOCKER_VOLUME" = true ]; then
+    echo ""
+    log_info "Configuración con volúmenes Docker aplicada para mejor performance en Windows"
+    echo ""
+    echo "  💡 Nota sobre volúmenes Docker:"
+    echo "    • El código se almacena en volúmenes internos de Docker"
+    echo "    • Esto mejora significativamente el rendimiento en Windows"
+    echo "    • Para sincronizar cambios, usa: make sync-to-volume"
+    echo "    • El volumen se llama: dgsuc-docker_app_code"
+fi

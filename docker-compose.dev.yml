@@ -10,9 +10,7 @@ services:
       XDEBUG_CONFIG: client_host=host.docker.internal
       XDEBUG_SESSION: 1
     volumes:
-      - ./app:/var/www/html
-      - ./app/storage:/var/www/html/storage
-      - ./app/bootstrap/cache:/var/www/html/bootstrap/cache
+      - app_code:/var/www/html
       - php_sessions:/var/www/html/storage/framework/sessions
       - php_cache:/var/www/html/storage/framework/cache
       - ~/.composer:/home/dgsuc_user/.composer
@@ -25,7 +23,7 @@ services:
       - "8080:80"
       - "8443:443"
     volumes:
-      - ./app:/var/www/html
+      - app_code:/var/www/html
       - ./docker/nginx/sites/default.conf:/etc/nginx/sites-enabled/default:ro
 
   postgres:
@@ -74,12 +72,15 @@ services:
     image: node:18-alpine
     container_name: dgsuc_node
     working_dir: /var/www/html
+    user: "1000:1000"  # Use the same user ID as your host system
     volumes:
-      - ./app:/var/www/html
+      - app_code:/var/www/html
     networks:
       - dgsuc_network
-    command: sh -c "npm install && tail -f /dev/null"
+    command: sh -c "npm install && find node_modules -name '*.bin' -type d -exec chmod +x {} \\; && find node_modules/.bin -type f -exec chmod +x {} \\; && find node_modules -name '*esbuild*' -type f -exec chmod +x {} \\; && tail -f /dev/null"
 
 volumes:
+  app_code:
+    driver: local
   postgres_data_dev:
     driver: local

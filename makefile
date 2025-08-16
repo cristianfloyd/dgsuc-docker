@@ -1,5 +1,5 @@
-# DGSUC Docker Management
-.PHONY: help dev prod build up down restart logs shell test backup restore clean
+﻿# DGSUC Docker Management
+.PHONY: help dev prod build up down restart logs shell test backup restore clean dev-windows-optimized
 
 # Default environment
 ENV ?= development
@@ -83,15 +83,43 @@ dev-build-assets: ## Build assets for development
 		$(COMPOSE_DEV) exec node npm run build; \
 	fi
 
-dev-rebuild: ## Rebuild development environment completely
-	@echo "Rebuilding development environment..."
-	BUILD_TARGET=development $(COMPOSE_DEV) down
-	docker system prune -f
-	BUILD_TARGET=development $(COMPOSE_DEV) build --no-cache
-	BUILD_TARGET=development $(COMPOSE_DEV) up -d
-	@echo "Installing Composer dependencies..."
-	$(COMPOSE_DEV) exec app composer install
-	@echo "Development environment rebuilt!"
+dev-rebuild: ## Rebuild development environment completely (Windows optimized)
+	@echo "🔧 Rebuilding development environment..."
+	@echo ""
+	@# Detect environment and choose appropriate strategy
+	@if [ "$(OS)" = "Windows_NT" ] || command -v wsl.exe >/dev/null 2>&1; then \
+		echo "🪟 Windows environment detected - using optimized rebuild"; \
+		echo ""; \
+		echo "🛑 Stopping current containers..."; \
+		BUILD_TARGET=development $(COMPOSE_DEV) down; \
+		echo "🧹 Cleaning Docker system..."; \
+		docker system prune -f; \
+		echo "🏗️  Building containers with --no-cache..."; \
+		BUILD_TARGET=development $(COMPOSE_DEV) build --no-cache; \
+		echo "🔄 Synchronizing code to Docker volume..."; \
+		make sync-to-volume; \
+		echo "🚀 Starting containers..."; \
+		BUILD_TARGET=development $(COMPOSE_DEV) up -d; \
+		echo "⏳ Waiting for containers to be ready..."; \
+		sleep 10; \
+		echo "📦 Installing Composer dependencies..."; \
+		$(COMPOSE_DEV) exec app composer install; \
+		echo "🔧 Fixing permissions..."; \
+		$(COMPOSE_DEV) exec app sh -c "chown -R 1000:1000 /var/www/html && chmod -R 755 /var/www/html && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache"; \
+		echo ""; \
+		echo "✅ Development environment rebuilt with Windows optimizations!"; \
+		echo "📍 Application URL: http://localhost:8080"; \
+		echo "💡 For future code changes, use: make sync-to-volume"; \
+	else \
+		echo "🐧 Linux/Unix environment detected - using standard rebuild"; \
+		BUILD_TARGET=development $(COMPOSE_DEV) down; \
+		docker system prune -f; \
+		BUILD_TARGET=development $(COMPOSE_DEV) build --no-cache; \
+		BUILD_TARGET=development $(COMPOSE_DEV) up -d; \
+		echo "Installing Composer dependencies..."; \
+		$(COMPOSE_DEV) exec app composer install; \
+		echo "Development environment rebuilt!"; \
+	fi
 
 # Production Commands
 prod: ## Start production environment
@@ -359,8 +387,10 @@ ssl-renew-docker: ## Renew SSL certificates using Docker
 clone: ## Clone the application repository
 	./scripts/clone-app.sh
 
-init: ## Initialize the environment
-	./scripts/init.sh
+init: ## Initialize the environment (configure variables and setup)
+	@echo "🚀 Initializing DGSUC Docker Environment..."
+	@echo ""
+	@./scripts/init.sh
 
 update: ## Update application code
 	cd app && git pull && cd ..
@@ -418,52 +448,162 @@ clean: ## Clean everything (containers, volumes, images)
 	docker system prune -f
 	docker volume prune -f
 
-backup-all: ## Complete system backup
+backup-all: ## Backup completo del sistema
 	./scripts/backup.sh full
 
-logs: ## Show all logs
+logs: ## Mostrar todos los logs
 	docker-compose logs -f
 
-health: ## Health check all services
-	@echo "Checking service health..."
-	@docker-compose ps | grep -E "Up|healthy" || echo "Some services are down!"
+health: ## Verificar estado de salud de todos los servicios
+	@echo "Verificando estado de los servicios..."
+	@docker-compose ps | grep -E "Up|healthy" || echo "Algunos servicios están caídos o no saludables."
 
-validate: ## Validate Docker Compose configuration
-	@echo "Validating configuration..."
+validate: ## Validar configuración de Docker Compose
+	@echo "Validando configuración de Docker Compose..."
 	@if [ "$(OS)" = "Windows_NT" ]; then \
 		powershell -ExecutionPolicy Bypass -File scripts/validate-config.ps1; \
 	else \
 		./scripts/validate-config.sh; \
 	fi
 
-# Installation
-install: ## Initial installation
-	@echo "Installing DGSUC Docker Environment..."
+# Instalación
+install: ## Instalación inicial
+	@echo "Instalando entorno Docker de DGSUC..."
 	@cp .env.docker.example .env
-	@echo "Please configure .env file before continuing"
-	@read -p "Press enter when .env is configured..." 
+	@echo "Por favor, configure el archivo .env antes de continuar"
+	@read -p "Presione enter cuando haya configurado el archivo .env..." 
 	@make dev-build
 	@make dev
 	@make db-migrate
-	@echo "Installation complete!"
+	@echo "¡Instalación completada!"
 
-# Windows-specific commands
-dev-windows: ## Start development environment (Windows optimized)
-	@echo "Starting development environment for Windows..."
+# Comandos específicos para Windows
+sync-to-volume: ## Sincronizar código al volumen Docker (optimización de rendimiento en Windows)
+	@echo "🔄 Sincronizando código al volumen interno de Docker..."
 	@if [ "$(OS)" = "Windows_NT" ]; then \
-		BUILD_TARGET=development $(COMPOSE_DEV) up -d; \
-		echo "Development environment started!"; \
-		echo "For hot reload, run 'make node-dev' in another terminal"; \
-		echo "Application available at: http://localhost:8080"; \
+		./scripts/sync-to-volume.bat; \
 	else \
-		echo "This command is for Windows only. Use 'make dev' instead."; \
+		./scripts/sync-to-volume.sh; \
 	fi
 
-dev-simple: ## Simple development start (cross-platform)
-	@echo "Starting development environment..."
+
+dev-windows-optimized: ## Iniciar entorno de desarrollo (Windows WSL optimizado con auto-clone y composer)
+	@echo "🚀 Iniciando entorno de desarrollo optimizado para Windows..."
+	@echo ""
+	@# Verificar si estamos en WSL o si WSL está disponible
+	@if [ -n "$$WSL_DISTRO_NAME" ]; then \
+		echo "✅ WSL detectado: $$WSL_DISTRO_NAME"; \
+		USE_WSL=true; \
+	elif command -v wsl.exe >/dev/null 2>&1; then \
+		echo "⚠️  WSL disponible pero no activo. Para mejor rendimiento, ejecute desde WSL:"; \
+		echo "   wsl"; \
+		echo "   cd $$(pwd | sed 's|^/mnt/\([a-z]\)|\1:|' | sed 's|/|\\\\|g')"; \
+		echo "   make dev-windows-optimized"; \
+		echo ""; \
+		read -p "¿Continuar con la configuración estándar de Windows? (y/N): " confirm; \
+		if [ "$$confirm" != "y" ] && [ "$$confirm" != "Y" ]; then \
+			echo "Configuración cancelada. Ejecute desde WSL para un rendimiento óptimo."; \
+			exit 1; \
+		fi; \
+		USE_WSL=false; \
+	else \
+		echo "ℹ️  Configuración estándar de Windows"; \
+		USE_WSL=false; \
+	fi; \
+	\
+	echo ""; \
+	echo "📦 Preparando entorno de desarrollo..."; \
+	\
+	if [ "$$USE_WSL" = "true" ]; then \
+		echo "🔧 Usando configuración optimizada para WSL..."; \
+		COMPOSE_CMD="docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.wsl.yml"; \
+	else \
+		echo "🔧 Usando configuración estándar de Windows..."; \
+		COMPOSE_CMD="$(COMPOSE_DEV)"; \
+	fi; \
+	\
+	echo "🏗️  Construyendo contenedores..."; \
+	BUILD_TARGET=development $$COMPOSE_CMD build; \
+	\
+	echo "🚀 Iniciando contenedores..."; \
+	BUILD_TARGET=development $$COMPOSE_CMD up -d; \
+	\
+	echo "⏳ Esperando que los contenedores estén listos..."; \
+	sleep 10; \
+	\
+	echo "📂 Verificando directorio de la aplicación..."; \
+	if ! $$COMPOSE_CMD exec -T app test -d /var/www/html/app 2>/dev/null; then \
+		echo "📥 Clonando la aplicación dentro del contenedor..."; \
+		$$COMPOSE_CMD exec -T app bash -c "\
+			cd /var/www/html && \
+			git clone https://github.com/cristianfloyd/dgsuc-app.git app && \
+			echo '✅ Aplicación clonada correctamente'"; \
+	else \
+		echo "✅ El directorio de la aplicación ya existe"; \
+	fi; \
+	\
+	echo "📋 Instalando dependencias de Composer..."; \
+	$$COMPOSE_CMD exec -T app bash -c "\
+		cd /var/www/html/app && \
+		composer install --no-interaction --prefer-dist && \
+		echo '✅ Dependencias de Composer instaladas'"; \
+	\
+	echo "🔑 Configurando entorno de Laravel..."; \
+	if ! $$COMPOSE_CMD exec -T app test -f /var/www/html/app/.env 2>/dev/null; then \
+		$$COMPOSE_CMD exec -T app bash -c "\
+			cd /var/www/html/app && \
+			cp .env.example .env && \
+			php artisan key:generate && \
+			echo '✅ Archivo .env de Laravel configurado'"; \
+	else \
+		echo "✅ El archivo .env de Laravel ya existe"; \
+	fi; \
+	\
+	echo "🗃️  Ejecutando migraciones de base de datos..."; \
+	$$COMPOSE_CMD exec -T app bash -c "\
+		cd /var/www/html/app && \
+		php artisan migrate --force && \
+		echo '✅ Migraciones de base de datos completadas'"; \
+	\
+	echo "🧹 Limpiando cachés de Laravel..."; \
+	$$COMPOSE_CMD exec -T app bash -c "\
+		cd /var/www/html/app && \
+		php artisan cache:clear && \
+		php artisan config:clear && \
+		php artisan view:clear && \
+		echo '✅ Cachés limpiadas'"; \
+	\
+	echo ""; \
+	echo "🎉 ¡Entorno de desarrollo listo!"; \
+	echo ""; \
+	echo "📍 URL de la aplicación: http://localhost:8080"; \
+	echo ""; \
+	if [ "$$USE_WSL" = "true" ]; then \
+		echo "🛠️  Comandos de desarrollo en WSL:"; \
+		echo "   ./wsl-dev.sh logs    - Ver logs"; \
+		echo "   ./wsl-dev.sh shell   - Ingresar al contenedor"; \
+		echo "   ./wsl-dev.sh stop    - Detener entorno"; \
+	else \
+		echo "🛠️  Comandos de desarrollo:"; \
+		echo "   make logs           - Ver logs"; \
+		echo "   make dev-shell      - Ingresar al contenedor"; \
+		echo "   make dev-stop       - Detener entorno"; \
+	fi; \
+	echo ""
+
+dev-windows: ## Iniciar entorno de desarrollo (optimizado para Windows con volumen Docker)
+	@echo "🚀 Iniciando entorno de desarrollo con volumen Docker (optimizado para Windows)..."
+	@make sync-to-volume
 	BUILD_TARGET=development $(COMPOSE_DEV) up -d
-	@echo "Development environment started!"
-	@echo "Application available at: http://localhost:8080"
+	@echo "✅ Entorno de desarrollo iniciado con volumen Docker."
+	@echo "📍 URL de la aplicación: http://localhost:8080"
+	@echo "💡 Para sincronizar cambios, ejecuta: make sync-to-volume"
+
+dev-simple: ## Inicio simple del entorno de desarrollo (multiplataforma)
+	@echo "Iniciando entorno de desarrollo..."
+	BUILD_TARGET=development $(COMPOSE_DEV) up -d
+	@echo "¡Entorno de desarrollo iniciado!"
+	@echo "Aplicación disponible en: http://localhost:8080"
 
 ssl-setup: ## Setup SSL certificates
 	@echo "Setting up SSL certificates..."
@@ -485,11 +625,11 @@ ssl-auto-renew: ## Setup automatic SSL renewal
 	@echo "Setting up automatic SSL renewal..."
 	@(crontab -l 2>/dev/null; echo "0 2 * * * $(PWD)/scripts/ssl-auto-renew.sh >> /var/log/ssl-renewal.log 2>&1") | crontab -
 
-change-domain: ## Change domain configuration
-	@echo "Changing domain configuration..."
-	@read -p "Enter old domain (e.g., dgsuc.uba.ar): " old_domain; \
-	read -p "Enter new domain (e.g., dgsuc.midominio.com): " new_domain; \
-	read -p "Enter new email: " new_email; \
+change-domain: ## Cambiar configuración de dominio
+	@echo "Modificando configuración de dominio..."
+	@read -p "Ingrese el dominio anterior (ej: dgsuc.uba.ar): " old_domain; \
+	read -p "Ingrese el nuevo dominio (ej: dgsuc.midominio.com): " new_domain; \
+	read -p "Ingrese el nuevo correo electrónico: " new_email; \
 	./scripts/change-domain.sh "$$old_domain" "$$new_domain" "admin@uba.ar" "$$new_email"
 
 ssl-generate-new: ## Generate SSL certificate for new domain
