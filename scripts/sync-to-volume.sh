@@ -56,6 +56,9 @@ docker exec $CONTAINER_ID sh -c "
         chmod -R 775 /var/www/html/bootstrap/cache || true
     fi
     
+    # Configurar Git para evitar warnings de ownership
+    git config --global --add safe.directory /var/www/html || true
+    
     echo 'Sincronización de archivos completada'
 "
 

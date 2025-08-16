@@ -104,8 +104,8 @@ dev-rebuild: ## Rebuild development environment completely (Windows optimized)
 		sleep 10; \
 		echo "📦 Installing Composer dependencies..."; \
 		$(COMPOSE_DEV) exec app composer install; \
-		echo "🔧 Fixing permissions..."; \
-		$(COMPOSE_DEV) exec app sh -c "chown -R 1000:1000 /var/www/html && chmod -R 755 /var/www/html && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache"; \
+		echo "🔧 Fixing permissions and Git configuration..."; \
+		$(COMPOSE_DEV) exec app sh -c "chown -R 1000:1000 /var/www/html && chmod -R 755 /var/www/html && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache && git config --global --add safe.directory /var/www/html"; \
 		echo ""; \
 		echo "✅ Development environment rebuilt with Windows optimizations!"; \
 		echo "📍 Application URL: http://localhost:8080"; \
@@ -595,6 +595,10 @@ dev-windows: ## Iniciar entorno de desarrollo (optimizado para Windows con volum
 	@echo "🚀 Iniciando entorno de desarrollo con volumen Docker (optimizado para Windows)..."
 	@make sync-to-volume
 	BUILD_TARGET=development $(COMPOSE_DEV) up -d
+	@echo "⏳ Esperando que los contenedores estén listos..."
+	@sleep 5
+	@echo "🔧 Configurando Git y permisos..."
+	@$(COMPOSE_DEV) exec app sh -c "git config --global --add safe.directory /var/www/html" || true
 	@echo "✅ Entorno de desarrollo iniciado con volumen Docker."
 	@echo "📍 URL de la aplicación: http://localhost:8080"
 	@echo "💡 Para sincronizar cambios, ejecuta: make sync-to-volume"
