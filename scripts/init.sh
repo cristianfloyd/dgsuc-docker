@@ -486,16 +486,23 @@ for ENV in $ENVIRONMENTS; do
     if [ $? -eq 0 ]; then
         log_info "Imágenes $ENV construidas exitosamente"
         
-        # Si usamos volúmenes Docker y es entorno dev, sincronizar código
+        # Si usamos volúmenes Docker y es entorno dev, preguntar por sincronización
         if [ "$USE_DOCKER_VOLUME" = true ] && [ "$ENV" = "dev" ]; then
-            log_step "Sincronizando código al volumen Docker..."
-            if [ -f "./scripts/sync-to-volume.sh" ]; then
-                chmod +x ./scripts/sync-to-volume.sh
-                ./scripts/sync-to-volume.sh
-            elif [ -f "./scripts/sync-to-volume.bat" ]; then
-                ./scripts/sync-to-volume.bat
+            echo ""
+            log_step "Configuración con volúmenes Docker detectada"
+            read -p "¿Quieres sincronizar el código al volumen Docker ahora? (Y/n): " SYNC_CODE
+            if [[ ! $SYNC_CODE =~ ^[Nn]$ ]]; then
+                log_step "Sincronizando código al volumen Docker..."
+                if [ -f "./scripts/sync-to-volume.sh" ]; then
+                    chmod +x ./scripts/sync-to-volume.sh
+                    ./scripts/sync-to-volume.sh
+                elif [ -f "./scripts/sync-to-volume.bat" ]; then
+                    ./scripts/sync-to-volume.bat
+                else
+                    log_warn "Script de sincronización no encontrado"
+                fi
             else
-                log_warn "Script de sincronización no encontrado"
+                log_info "Sincronización omitida. Puedes ejecutarla después con: make sync-to-volume"
             fi
         fi
     else
@@ -575,9 +582,9 @@ if [ "$USE_WSL_COMPOSE" = true ]; then
     echo "    • ./wsl-dev.sh optimize  - Optimizar caches"
     echo "    • make db-migrate        - Ejecutar migraciones"
 elif [ "$USE_DOCKER_VOLUME" = true ]; then
-    echo "    • make dev-windows       - Iniciar desarrollo (Windows optimizado)"
+    echo "    • make dev-windows       - Iniciar desarrollo (Windows optimizado con nginx)"
     echo "    • make sync-to-volume    - Sincronizar cambios al volumen"
-    echo "    • make logs              - Ver logs"
+    echo "    • make dev-logs          - Ver logs"
     echo "    • make dev-shell         - Entrar al contenedor"
     echo "    • make db-migrate        - Ejecutar migraciones"
 else

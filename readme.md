@@ -248,6 +248,24 @@ make db-backup        # Crear backup
 make db-restore       # Restaurar backup
 ```
 
+### Sincronización de Archivos (Volúmenes Docker)
+
+```bash
+# Sincronizar todo el código (completo, lento)
+make sync-to-volume   # Copiar todos los archivos al volumen Docker
+
+# Sincronización rápida de archivos específicos
+make sync-env         # Solo sincronizar archivo .env
+make sync-file file="composer.json"  # Sincronizar archivo específico
+make sync-file file="config/app.php" # Ejemplo: archivo de configuración
+make sync-file file="routes/web.php" # Ejemplo: archivo de rutas
+
+# Verificar sincronización
+make dev-logs         # Ver logs para confirmar cambios aplicados
+```
+
+> **💡 Tip**: En Windows con volúmenes Docker, usa `make sync-env` después de cambiar configuraciones en lugar de `make sync-to-volume` completo.
+
 ### Gestión de Permisos
 
 ```bash
@@ -282,6 +300,40 @@ make queue-restart    # Reiniciar workers
 make queue-failed     # Ver jobs fallidos
 make queue-retry      # Reintentar jobs fallidos
 ```
+
+### Optimización Windows (Volúmenes Docker)
+
+La configuración optimizada para Windows utiliza volúmenes Docker internos con nginx para mejor rendimiento:
+
+#### Arquitectura de Volúmenes
+- **Volumen app_code**: Código de la aplicación (mejor rendimiento I/O)
+- **nginx**: Servidor web proxy hacia PHP-FPM
+- **php-fpm**: Procesamiento PHP (reemplaza `artisan serve`)
+
+#### Comandos específicos
+```bash
+# Iniciar con configuración optimizada
+make dev-windows
+
+# Sincronización selectiva (recomendado)
+make sync-env                     # Solo .env
+make sync-file file="composer.json" # Archivo específico
+
+# Sincronización completa (solo cuando sea necesario)
+make sync-to-volume
+```
+
+#### URLs de acceso
+- **Aplicación**: http://localhost:8080 (nginx)
+- **Base de datos**: localhost:7432
+- **Xdebug**: puerto 9003
+
+#### Ventajas
+- ✅ 50-80% mejor rendimiento I/O en Windows
+- ✅ Nginx como proxy profesional
+- ✅ Sincronización selectiva de archivos
+- ✅ Compatible con Xdebug
+- ✅ Aislamiento completo del código en volúmenes
 
 ### SSL/TLS
 
@@ -322,7 +374,7 @@ cd dgsuc-docker
 # Inicializar
 make init
 
-# Iniciar servicios (Windows optimizado)
+# Iniciar servicios (Windows optimizado con nginx + volúmenes Docker)
 make dev-windows
 
 # En otra terminal, para hot reload de assets:
@@ -364,7 +416,7 @@ make stop
 
 #### Windows:
 ```bash
-# Iniciar ambiente (Windows optimizado)
+# Iniciar ambiente (Windows optimizado con nginx + volúmenes Docker)
 make dev-windows
 
 # En otra terminal, para hot reload de assets:

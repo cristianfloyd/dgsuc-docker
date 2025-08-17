@@ -104,6 +104,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    profiles:
+      - production
+      - development
 
   # PostgreSQL Database
   postgres:
@@ -158,6 +161,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    profiles:
+      - production
 
   # Queue Workers
   workers:
@@ -179,6 +184,8 @@ services:
       - postgres
       - redis
     command: supervisord -c /etc/supervisor/conf.d/supervisord.conf
+    profiles:
+      - production
 
   # Scheduler (Cron)
   scheduler:
@@ -202,6 +209,8 @@ services:
         php /var/www/html/artisan schedule:run --verbose --no-interaction &
         sleep 60
       done"
+    profiles:
+      - production
 
   certbot:
     image: certbot/certbot:latest

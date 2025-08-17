@@ -507,6 +507,88 @@ sync-to-volume: ## Sincronizar código al volumen Docker (optimización de rendi
 		./scripts/sync-to-volume.sh; \
 	fi
 
+sync-env: ## Sincronizar solo archivo .env al volumen Docker
+	@echo "🔄 Sincronizando archivo .env al volumen Docker..."
+	@if [ ! -f "./app/.env" ]; then \
+		echo "❌ No se encontró el archivo ./app/.env"; \
+		exit 1; \
+	fi
+	@echo "📋 Copiando .env al contenedor..."
+	@if docker ps --format "table {{.Names}}" | grep -q "dgsuc_app"; then \
+		docker cp "./app/.env" dgsuc_app:/var/www/html/.env && \
+		docker exec dgsuc_app sh -c "chown dgsuc_user:www-data /var/www/html/.env" && \
+		docker exec dgsuc_app sh -c "chmod 644 /var/www/html/.env" && \
+		echo "✅ Archivo .env sincronizado correctamente"; \
+	else \
+		echo "❌ El contenedor dgsuc_app no está ejecutándose"; \
+		echo "💡 Inicia el entorno con: make dev-windows"; \
+		exit 1; \
+	fi
+
+sync-file: ## Sincronizar archivo específico al volumen Docker (usage: make sync-file file="path/file.ext")
+	@echo "🔄 Sincronizando archivo $(file) al volumen Docker..."
+	@if [ -z "$(file)" ]; then \
+		echo "❌ Debes especificar un archivo: make sync-file file='path/file.ext'"; \
+		exit 1; \
+	fi
+	@if [ ! -f "./app/$(file)" ]; then \
+		echo "❌ No se encontró el archivo ./app/$(file)"; \
+		exit 1; \
+	fi
+	@echo "📋 Copiando $(file) al contenedor..."
+	@if docker ps --format "table {{.Names}}" | grep -q "dgsuc_app"; then \
+		docker cp "./app/$(file)" "dgsuc_app:/var/www/html/$(file)" && \
+		docker exec dgsuc_app sh -c "chown dgsuc_user:www-data /var/www/html/$(file)" && \
+		docker exec dgsuc_app sh -c "chmod 644 /var/www/html/$(file)" && \
+		echo "✅ Archivo $(file) sincronizado correctamente"; \
+	else \
+		echo "❌ El contenedor dgsuc_app no está ejecutándose"; \
+		echo "💡 Inicia el entorno con: make dev-windows"; \
+		exit 1; \
+	fi
+
+git-checkout: ## Cambiar rama en el volumen Docker (usage: make git-checkout branch="nombre-rama")
+	@echo "🔀 Cambiando a la rama $(branch) en el volumen Docker..."
+	@if [ -z "$(branch)" ]; then \
+		echo "❌ Debes especificar una rama: make git-checkout branch='nombre-rama'"; \
+		exit 1; \
+	fi
+	@if docker ps --format "table {{.Names}}" | grep -q "dgsuc_app"; then \
+		echo "📋 Verificando estado del repositorio..."; \
+		docker exec dgsuc_app sh -c "cd /var/www/html && git status --porcelain" | head -10; \
+		echo "🔄 Cambiando a la rama $(branch)..."; \
+		docker exec dgsuc_app sh -c "cd /var/www/html && git fetch origin && git checkout $(branch)" && \
+		echo "📦 Actualizando dependencias si es necesario..."; \
+		docker exec dgsuc_app sh -c "cd /var/www/html && composer install --no-interaction --prefer-dist" && \
+		echo "✅ Rama $(branch) activada correctamente"; \
+		echo "📋 Estado actual:"; \
+		docker exec dgsuc_app sh -c "cd /var/www/html && git branch --show-current && git log --oneline -3"; \
+	else \
+		echo "❌ El contenedor dgsuc_app no está ejecutándose"; \
+		echo "💡 Inicia el entorno con: make dev-windows"; \
+		exit 1; \
+	fi
+
+git-status: ## Ver estado de Git en el volumen Docker
+	@echo "📋 Estado de Git en el volumen Docker..."
+	@if docker ps --format "table {{.Names}}" | grep -q "dgsuc_app"; then \
+		echo "Rama actual:"; \
+		docker exec dgsuc_app sh -c "cd /var/www/html && git branch --show-current"; \
+		echo ""; \
+		echo "Estado del repositorio:"; \
+		docker exec dgsuc_app sh -c "cd /var/www/html && git status --short"; \
+		echo ""; \
+		echo "Últimos 3 commits:"; \
+		docker exec dgsuc_app sh -c "cd /var/www/html && git log --oneline -3"; \
+		echo ""; \
+		echo "Ramas disponibles:"; \
+		docker exec dgsuc_app sh -c "cd /var/www/html && git branch -a | head -10"; \
+	else \
+		echo "❌ El contenedor dgsuc_app no está ejecutándose"; \
+		echo "💡 Inicia el entorno con: make dev-windows"; \
+		exit 1; \
+	fi
+
 
 dev-windows-optimized: ## Iniciar entorno de desarrollo (Windows WSL optimizado con auto-clone y composer)
 	@echo "🚀 Iniciando entorno de desarrollo optimizado para Windows..."
@@ -612,22 +694,24 @@ dev-windows-optimized: ## Iniciar entorno de desarrollo (Windows WSL optimizado 
 	fi; \
 	echo ""
 
-dev-windows: ## Iniciar entorno de desarrollo (optimizado para Windows con volumen Docker)
+dev-windows: ## Iniciar entorno de desarrollo (Windows optimizado con volumen Docker y nginx)
 	@echo "🚀 Iniciando entorno de desarrollo con volumen Docker (optimizado para Windows)..."
 	@if [ ! -f ".env.secrets" ]; then \
 		echo "📋 Copiando .env.secrets desde .env.secrets.example..."; \
 		cp .env.secrets.example .env.secrets; \
 		echo "✅ Archivo .env.secrets creado"; \
 	fi
-	@make sync-to-volume
-	BUILD_TARGET=development $(COMPOSE_DEV) up -d
+	@echo "🏗️  Construyendo servicios..."
+	BUILD_TARGET=development $(COMPOSE_DEV) build
+	@echo "🚀 Iniciando servicios (app, nginx, postgres)..."
+	BUILD_TARGET=development $(COMPOSE_DEV) --profile development up -d
 	@echo "⏳ Esperando que los contenedores estén listos..."
-	@sleep 5
-	@echo "🔧 Configurando Git y permisos..."
-	@$(COMPOSE_DEV) exec app sh -c "git config --global --add safe.directory /var/www/html" || true
-	@echo "✅ Entorno de desarrollo iniciado con volumen Docker."
+	@sleep 10
+	@echo "✅ Entorno de desarrollo iniciado con volumen Docker y nginx."
 	@echo "📍 URL de la aplicación: http://localhost:8080"
-	@echo "💡 Para sincronizar cambios, ejecuta: make sync-to-volume"
+	@echo "🗄️  Base de datos: localhost:7432"
+	@echo "💡 Para sincronizar cambios: make sync-to-volume"
+	@echo "📋 Para ver logs: make dev-logs"
 
 dev-simple: ## Inicio simple del entorno de desarrollo (multiplataforma)
 	@echo "Iniciando entorno de desarrollo..."

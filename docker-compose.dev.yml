@@ -19,11 +19,37 @@ services:
       - php_cache:/var/www/html/storage/framework/cache
       - ~/.composer:/home/dgsuc_user/.composer
     ports:
-      - "8080:8000"  # Puerto directo de Laravel serve
       - "9003:9003"  # Xdebug port
-    command: ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+    command: >
+      sh -c "
+        echo 'Configuring Git safe directory...' &&
+        git config --global --add safe.directory /var/www/html &&
+        if [ ! -d vendor ] || [ ! -f vendor/autoload.php ]; then
+          echo 'Installing Composer dependencies...'
+          cd /var/www/html && composer install --no-interaction --prefer-dist
+        fi &&
+        if [ ! -f /var/www/html/.env ]; then
+          echo 'Creating .env file...'
+          cd /var/www/html && cp .env.example .env && php artisan key:generate
+        fi &&
+        echo 'Fixing permissions...' &&
+        chown -R dgsuc_user:www-data /var/www/html &&
+        chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache &&
+        echo 'Starting PHP-FPM...' &&
+        php-fpm -F
+      "
     depends_on:
       - postgres
+
+  nginx:
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - app_code:/var/www/html
+      - ./docker/nginx/sites/default.conf:/etc/nginx/sites-enabled/default:ro
+    depends_on:
+      - app
 
   postgres:
     ports:
