@@ -277,6 +277,21 @@ for ENV in $ENVIRONMENTS; do
             
             read -p "URL de la aplicación (ej., https://dgsuc.uba.ar): " APP_URL
             sed -i "s|APP_URL=.*|APP_URL=$APP_URL|" "$ENV_FILE"
+        elif [ "$ENV" = "dev" ]; then
+            echo ""
+            log_step "Configurar ajustes de desarrollo:"
+            read -p "Contraseña de la base de datos principal: " -s DB_PASS
+            echo ""
+            sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=$DB_PASS/" "$ENV_FILE"
+            
+            read -p "¿Configurar contraseña de Redis? (y/N): " CONFIG_REDIS
+            if [[ $CONFIG_REDIS =~ ^[Yy]$ ]]; then
+                read -p "Contraseña de Redis (opcional): " -s REDIS_PASS
+                echo ""
+                if [ ! -z "$REDIS_PASS" ]; then
+                    sed -i "s/REDIS_PASSWORD=.*/REDIS_PASSWORD=$REDIS_PASS/" "$ENV_FILE"
+                fi
+            fi
         fi
     else
         log_info "$ENV_FILE ya existe"
