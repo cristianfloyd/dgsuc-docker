@@ -29,11 +29,21 @@ help: ## Show this help message
 # Development Commands
 dev: ## Start development environment
 	@echo "Starting development environment..."
+	@if [ ! -f ".env.secrets" ]; then \
+		echo "📋 Copiando .env.secrets desde .env.secrets.example..."; \
+		cp .env.secrets.example .env.secrets; \
+		echo "✅ Archivo .env.secrets creado"; \
+	fi
 	BUILD_TARGET=development $(COMPOSE_DEV) up -d
 	@echo "Development environment is running at http://localhost:8080"
 
 dev-wsl: ## Start development environment for WSL
 	@echo "Starting WSL development environment..."
+	@if [ ! -f ".env.secrets" ]; then \
+		echo "📋 Copiando .env.secrets desde .env.secrets.example..."; \
+		cp .env.secrets.example .env.secrets; \
+		echo "✅ Archivo .env.secrets creado"; \
+	fi
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.wsl.yml up -d
 	@echo "WSL development environment is running at http://localhost:8080"
 
@@ -593,6 +603,11 @@ dev-windows-optimized: ## Iniciar entorno de desarrollo (Windows WSL optimizado 
 
 dev-windows: ## Iniciar entorno de desarrollo (optimizado para Windows con volumen Docker)
 	@echo "🚀 Iniciando entorno de desarrollo con volumen Docker (optimizado para Windows)..."
+	@if [ ! -f ".env.secrets" ]; then \
+		echo "📋 Copiando .env.secrets desde .env.secrets.example..."; \
+		cp .env.secrets.example .env.secrets; \
+		echo "✅ Archivo .env.secrets creado"; \
+	fi
 	@make sync-to-volume
 	BUILD_TARGET=development $(COMPOSE_DEV) up -d
 	@echo "⏳ Esperando que los contenedores estén listos..."
