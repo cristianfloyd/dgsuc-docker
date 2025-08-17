@@ -9,22 +9,21 @@ services:
       XDEBUG_MODE: develop,debug
       XDEBUG_CONFIG: client_host=host.docker.internal
       XDEBUG_SESSION: 1
+      # Configuración sin Redis
+      CACHE_DRIVER: file
+      SESSION_DRIVER: file
+      QUEUE_CONNECTION: sync
     volumes:
       - app_code:/var/www/html
       - php_sessions:/var/www/html/storage/framework/sessions
       - php_cache:/var/www/html/storage/framework/cache
       - ~/.composer:/home/dgsuc_user/.composer
     ports:
+      - "8080:8000"  # Puerto directo de Laravel serve
       - "9003:9003"  # Xdebug port
-    entrypoint: ["/usr/local/bin/fix-permissions.sh", "php-fpm", "-F"]
-
-  nginx:
-    ports:
-      - "8080:80"
-      - "8443:443"
-    volumes:
-      - app_code:/var/www/html
-      - ./docker/nginx/sites/default.conf:/etc/nginx/sites-enabled/default:ro
+    command: ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+    depends_on:
+      - postgres
 
   postgres:
     ports:
@@ -34,50 +33,6 @@ services:
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-
-  redis:
-    ports:
-      - "6380:6379"
-    command: redis-server --appendonly yes
-
-  # Development tools
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: dgsuc_mailhog
-    restart: unless-stopped
-    ports:
-      - "1025:1025"
-      - "8025:8025"
-    networks:
-      - dgsuc_network
-
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin
-    container_name: dgsuc_phpmyadmin
-    restart: unless-stopped
-    environment:
-      PMA_HOST: postgres
-      PMA_PORT: 5432
-      PMA_USER: ${DB_USERNAME:-dgsuc_user}
-      PMA_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "8090:80"
-    networks:
-      - dgsuc_network
-    depends_on:
-      - postgres
-
-  # Node.js for asset compilation
-  node:
-    image: node:18-alpine
-    container_name: dgsuc_node
-    working_dir: /var/www/html
-    user: "1000:1000"  # Use the same user ID as your host system
-    volumes:
-      - app_code:/var/www/html
-    networks:
-      - dgsuc_network
-    command: sh -c "npm install && find node_modules -name '*.bin' -type d -exec chmod +x {} \\; && find node_modules/.bin -type f -exec chmod +x {} \\; && find node_modules -name '*esbuild*' -type f -exec chmod +x {} \\; && tail -f /dev/null"
 
 volumes:
   app_code:

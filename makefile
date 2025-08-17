@@ -252,16 +252,18 @@ host-fix-permissions: ## Fix permissions from host (when container commands fail
 		echo "Host permissions fixed!"; \
 	fi
 
-deps-install: ## Install all dependencies (Composer + npm)
-	@echo "Installing all dependencies..."
+deps-install: ## Install all dependencies (Composer only)
 	@echo "Installing Composer dependencies..."
 	$(COMPOSE_DEV) exec app composer install
-	@echo "Installing npm dependencies..."
-	$(COMPOSE_DEV) exec node npm install
-	@echo "All dependencies installed!"
+	@echo "Dependencies installed!"
 
-npm: ## Run npm command (usage: make npm cmd="run build")
-	$(COMPOSE_DEV) exec node npm $(cmd)
+npm: ## Run npm command using external node (usage: make npm cmd="install")
+	@echo "Running npm command: $(cmd)"
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		docker run --rm -v "$(PWD)/app:/var/www/html" -w /var/www/html node:18-alpine npm $(cmd); \
+	else \
+		docker run --rm -v "$(shell pwd)/app:/var/www/html" -w /var/www/html node:18-alpine npm $(cmd); \
+	fi
 
 test: ## Run tests
 	$(COMPOSE_DEV) exec app php artisan test
@@ -282,31 +284,41 @@ cache-build: ## Build all caches (production)
 	$(COMPOSE_DEV) exec app php artisan view:cache
 	$(COMPOSE_DEV) exec app php artisan event:cache
 
-# Queue Commands
-queue-work: ## Start queue worker
-	$(COMPOSE_DEV) exec app php artisan queue:work
+# Queue Commands (disabled for simplified development environment)
+# Note: Queue functionality requires Redis service
+# queue-work: ## Start queue worker
+#	$(COMPOSE_DEV) exec app php artisan queue:work
 
-queue-restart: ## Restart queue workers
-	$(COMPOSE_DEV) exec app php artisan queue:restart
+# queue-restart: ## Restart queue workers
+#	$(COMPOSE_DEV) exec app php artisan queue:restart
 
-queue-failed: ## List failed jobs
-	$(COMPOSE_DEV) exec app php artisan queue:failed
+# queue-failed: ## List failed jobs
+#	$(COMPOSE_DEV) exec app php artisan queue:failed
 
-queue-retry: ## Retry failed jobs
-	$(COMPOSE_DEV) exec app php artisan queue:retry all
+# queue-retry: ## Retry failed jobs
+#	$(COMPOSE_DEV) exec app php artisan queue:retry all
 
-# Node.js Commands
-node-shell: ## Enter node container shell (development)
-	$(COMPOSE_DEV) exec node sh
+# Node.js Commands (using external containers)
+node-install: ## Install npm dependencies using external node container
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		docker run --rm -v "$(PWD)/app:/var/www/html" -w /var/www/html node:18-alpine npm install; \
+	else \
+		docker run --rm -v "$(shell pwd)/app:/var/www/html" -w /var/www/html node:18-alpine npm install; \
+	fi
 
-node-install: ## Install npm dependencies (development)
-	$(COMPOSE_DEV) exec node npm install
+node-dev: ## Run npm dev command using external node container
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		docker run --rm -v "$(PWD)/app:/var/www/html" -w /var/www/html node:18-alpine npm run dev; \
+	else \
+		docker run --rm -v "$(shell pwd)/app:/var/www/html" -w /var/www/html node:18-alpine npm run dev; \
+	fi
 
-node-dev: ## Run npm dev command (development)
-	$(COMPOSE_DEV) exec node npm run dev
-
-node-build: ## Run npm build command (development)
-	$(COMPOSE_DEV) exec node npm run build
+node-build: ## Run npm build command using external node container
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		docker run --rm -v "$(PWD)/app:/var/www/html" -w /var/www/html node:18-alpine npm run build; \
+	else \
+		docker run --rm -v "$(shell pwd)/app:/var/www/html" -w /var/www/html node:18-alpine npm run build; \
+	fi
 
 # Asset Commands (Both environments)
 assets-build: ## Build assets for current environment
@@ -328,10 +340,9 @@ assets-install: ## Install npm dependencies for current environment
 assets-watch: ## Watch and build assets in development
 	@echo "Starting asset watcher for development..."
 	@if [ "$(OS)" = "Windows_NT" ]; then \
-		echo "Windows detected. For hot reload, use: make dev and then make node-dev in another terminal"; \
-		make node-dev; \
+		docker run --rm -v "$(PWD)/app:/var/www/html" -w /var/www/html node:18-alpine npm run dev; \
 	else \
-		$(COMPOSE_DEV) exec node npm run dev; \
+		docker run --rm -v "$(shell pwd)/app:/var/www/html" -w /var/www/html node:18-alpine npm run dev; \
 	fi
 
 assets-check: ## Check if assets are built

@@ -73,7 +73,6 @@ services:
       - dgsuc_network
     depends_on:
       - postgres
-      - redis
     healthcheck:
       test: ["CMD", "php-fpm", "-t"]
       interval: 30s
