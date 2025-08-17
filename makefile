@@ -644,3 +644,20 @@ ssl-generate-new: ## Generate SSL certificate for new domain
 ssl-test-domain: ## Test SSL for specific domain
 	@read -p "Enter domain to test: " domain; \
 	curl -s -o /dev/null -w "SSL Test for $$domain: %{http_code}\n" https://$$domain
+
+# Troubleshooting Commands
+setup-env: ## Configurar entorno básico (crear archivos .env)
+	@echo "🔧 Configurando entorno básico..."
+	@./scripts/setup-env.sh
+
+diagnose: ## Diagnosticar problemas de inicialización
+	@echo "🔍 Diagnosticando problemas de inicialización..."
+	@./scripts/diagnose-init.sh
+
+fix-init: ## Solucionar errores de inicialización
+	@echo "🔧 Solucionando errores de inicialización..."
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		./scripts/fix-init-errors-windows.sh; \
+	else \
+		./scripts/fix-init-errors.sh; \
+	fi
