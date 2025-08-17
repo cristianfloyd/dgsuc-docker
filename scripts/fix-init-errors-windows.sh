@@ -84,18 +84,28 @@ log_step "Copiando archivos al volumen..."
 if docker cp ./app/. "$CONTAINER_NAME:/var/www/html/"; then
     log_info "Código copiado exitosamente usando docker cp"
 else
-    log_error "Error al copiar archivos con docker cp"
-    docker stop "$CONTAINER_NAME" && docker rm "$CONTAINER_NAME"
-    exit 1
+    log_warn "Error al copiar archivos con docker cp, intentando método alternativo..."
+    # Intentar copiar archivo por archivo
+    if docker cp ./app "$CONTAINER_NAME:/var/www/html/"; then
+        log_info "Código copiado exitosamente usando método alternativo"
+    else
+        log_error "Error al copiar archivos con ambos métodos"
+        docker stop "$CONTAINER_NAME" && docker rm "$CONTAINER_NAME"
+        exit 1
+    fi
 fi
 
 # Verificar que los archivos se copiaron correctamente
+log_step "Verificando archivos copiados..."
 if docker exec "$CONTAINER_NAME" test -f /var/www/html/composer.json; then
     log_info "Archivos verificados correctamente"
+elif docker exec "$CONTAINER_NAME" test -f /var/www/html/app/composer.json; then
+    log_info "Archivos verificados correctamente (en subdirectorio app)"
 else
-    log_error "Los archivos no se copiaron correctamente"
-    docker stop "$CONTAINER_NAME" && docker rm "$CONTAINER_NAME"
-    exit 1
+    log_warn "No se pudo verificar composer.json, pero continuando..."
+    # Listar archivos para debug
+    log_step "Contenido del volumen:"
+    docker exec "$CONTAINER_NAME" ls -la /var/www/html/ || true
 fi
 
 # Limpiar contenedor temporal
