@@ -17,7 +17,7 @@ services:
       - app_code:/var/www/html
       - php_sessions:/var/www/html/storage/framework/sessions
       - php_cache:/var/www/html/storage/framework/cache
-      - ~/.composer:/home/dgsuc_user/.composer
+      - ~/.composer:/home/www-data/.composer
     ports:
       - "9003:9003"  # Xdebug port
     command: >
@@ -33,7 +33,7 @@ services:
           cd /var/www/html && cp .env.example .env && php artisan key:generate
         fi &&
         echo 'Fixing permissions...' &&
-        chown -R dgsuc_user:www-data /var/www/html &&
+        chown -R www-data:www-data /var/www/html &&
         chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache &&
         echo 'Starting PHP-FPM...' &&
         php-fpm -F

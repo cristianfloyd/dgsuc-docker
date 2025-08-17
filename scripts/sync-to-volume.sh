@@ -44,7 +44,7 @@ docker exec $CONTAINER_ID sh -c "
     cp -r /source/. /var/www/html/ || true
     
     # Ajustar permisos
-    chown -R 1000:1000 /var/www/html || true
+    chown -R 33:33 /var/www/html || true
     find /var/www/html -type f -exec chmod 644 {} \; || true
     find /var/www/html -type d -exec chmod 755 {} \; || true
     

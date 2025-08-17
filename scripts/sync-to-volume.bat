@@ -42,7 +42,7 @@ ping 127.0.0.1 -n 3 > nul
 
 REM Sincronizar archivos
 echo 📁 Copiando archivos al volumen...
-docker exec %container_name% sh -c "find /var/www/html -mindepth 1 -maxdepth 1 ! -name '.git' ! -name 'storage' ! -name 'bootstrap' -exec rm -rf {} + || true && cp -r /source/. /var/www/html/ || true && chown -R 1000:1000 /var/www/html || true && find /var/www/html -type f -exec chmod 644 {} \; || true && find /var/www/html -type d -exec chmod 755 {} \; || true && if [ -d '/var/www/html/storage' ]; then chmod -R 775 /var/www/html/storage || true; fi && if [ -d '/var/www/html/bootstrap/cache' ]; then chmod -R 775 /var/www/html/bootstrap/cache || true; fi && echo 'Sincronización de archivos completada'"
+docker exec %container_name% sh -c "find /var/www/html -mindepth 1 -maxdepth 1 ! -name '.git' ! -name 'storage' ! -name 'bootstrap' -exec rm -rf {} + || true && cp -r /source/. /var/www/html/ || true && chown -R 33:33 /var/www/html || true && find /var/www/html -type f -exec chmod 644 {} \; || true && find /var/www/html -type d -exec chmod 755 {} \; || true && if [ -d '/var/www/html/storage' ]; then chmod -R 775 /var/www/html/storage || true; fi && if [ -d '/var/www/html/bootstrap/cache' ]; then chmod -R 775 /var/www/html/bootstrap/cache || true; fi && echo 'Sincronización de archivos completada'"
 
 REM Limpiar contenedor temporal
 echo 🧹 Limpiando contenedor temporal...

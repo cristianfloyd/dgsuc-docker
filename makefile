@@ -516,7 +516,7 @@ sync-env: ## Sincronizar solo archivo .env al volumen Docker
 	@echo "📋 Copiando .env al contenedor..."
 	@if docker ps --format "table {{.Names}}" | grep -q "dgsuc_app"; then \
 		docker cp "./app/.env" dgsuc_app:/var/www/html/.env && \
-		docker exec dgsuc_app sh -c "chown dgsuc_user:www-data /var/www/html/.env" && \
+		docker exec dgsuc_app sh -c "chown www-data:www-data /var/www/html/.env" && \
 		docker exec dgsuc_app sh -c "chmod 644 /var/www/html/.env" && \
 		echo "✅ Archivo .env sincronizado correctamente"; \
 	else \
@@ -538,7 +538,7 @@ sync-file: ## Sincronizar archivo específico al volumen Docker (usage: make syn
 	@echo "📋 Copiando $(file) al contenedor..."
 	@if docker ps --format "table {{.Names}}" | grep -q "dgsuc_app"; then \
 		docker cp "./app/$(file)" "dgsuc_app:/var/www/html/$(file)" && \
-		docker exec dgsuc_app sh -c "chown dgsuc_user:www-data /var/www/html/$(file)" && \
+		docker exec dgsuc_app sh -c "chown www-data:www-data /var/www/html/$(file)" && \
 		docker exec dgsuc_app sh -c "chmod 644 /var/www/html/$(file)" && \
 		echo "✅ Archivo $(file) sincronizado correctamente"; \
 	else \
