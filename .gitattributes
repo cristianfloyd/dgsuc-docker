@@ -1,0 +1,92 @@
+# =============================================================================
+# CONFIGURACIÓN DE LINE ENDINGS PARA COMPATIBILIDAD UNIX/LINUX
+# =============================================================================
+
+# Normalización global: LF para todos los archivos de texto
+* text=auto eol=lf
+
+# Archivos específicos de Unix - siempre LF
+*.sh text eol=lf
+*.bash text eol=lf
+*.env text eol=lf
+*.env.* text eol=lf
+
+# Archivos de código - siempre LF
+*.php text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.xml text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.sass text eol=lf
+*.vue text eol=lf
+*.blade.php text eol=lf
+
+# Archivos de configuración - siempre LF
+*.conf text eol=lf
+*.config text eol=lf
+*.ini text eol=lf
+*.cnf text eol=lf
+Dockerfile text eol=lf
+Dockerfile.* text eol=lf
+docker-compose*.yml text eol=lf
+*.dockerfile text eol=lf
+
+# Archivos de documentación - siempre LF
+*.md text eol=lf
+*.txt text eol=lf
+*.rst text eol=lf
+README* text eol=lf
+CHANGELOG* text eol=lf
+LICENSE* text eol=lf
+COPYING* text eol=lf
+
+# Archivos de SQL - siempre LF
+*.sql text eol=lf
+
+# Archivos Laravel específicos - siempre LF
+artisan text eol=lf
+*.stub text eol=lf
+
+# Archivos de configuración de herramientas - siempre LF
+.editorconfig text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.env.example text eol=lf
+composer.json text eol=lf
+composer.lock text eol=lf
+package.json text eol=lf
+package-lock.json text eol=lf
+*.lock text eol=lf
+
+# Archivos binarios - no convertir
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.eot binary
+*.otf binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+*.rar binary
+
+# Archivos específicos de Windows - mantener CRLF si existen
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Excluir archivos de vendor de la normalización
+vendor/** binary
+node_modules/** binary
+storage/framework/** binary
+bootstrap/cache/** binary
