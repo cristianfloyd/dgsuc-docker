@@ -16,6 +16,7 @@ services:
     volumes:
       # Solo volúmenes Docker - no bind mounts de Windows
       - app_code:/var/www/html
+      - ./.env:/var/www/html/.env  # Bind mount específico para .env
       - php_sessions:/var/www/html/storage/framework/sessions
       - php_cache:/var/www/html/storage/framework/cache
       - composer_cache:/home/www-data/.composer
