@@ -168,18 +168,25 @@ esac
 
 echo ""
 
-# Clonación de la aplicación
+# Configuración de la aplicación (sin clonado automático)
 log_title "Configuración de la Aplicación"
 
 if [ ! -d "./app" ]; then
-    read -p "Ingresa la URL del repositorio Git (o presiona Enter para el predeterminado): " REPO_URL
-    REPO_URL=${REPO_URL:-"https://github.com/cristianfloyd/dgsuc-app.git"}
-    
-    read -p "Ingresa el nombre de la rama (predeterminado: main): " BRANCH
-    BRANCH=${BRANCH:-"main"}
-    
-    log_step "Clonando aplicación..."
-    ./scripts/clone-app.sh "$REPO_URL" "$BRANCH"
+    log_warn "El directorio de la aplicación no existe"
+    echo ""
+    echo "📋 NOTA: El clonado de la aplicación se realizará manualmente dentro del contenedor"
+    echo "    después de que todos los servicios estén iniciados."
+    echo ""
+    echo "    Para clonar la aplicación dentro del contenedor:"
+    echo "    1. Inicia el entorno: make dev"
+    echo "    2. Entra al contenedor: make dev-shell"
+    echo "    3. Clona el repositorio: git clone https://github.com/cristianfloyd/dgsuc-app.git app"
+    echo ""
+    read -p "¿Continuar con la configuración? (Y/n): " CONTINUE_SETUP
+    if [[ $CONTINUE_SETUP =~ ^[Nn]$ ]]; then
+        log_info "Configuración cancelada por el usuario"
+        exit 0
+    fi
 else
     log_info "El directorio de la aplicación ya existe"
     read -p "¿Quieres actualizarlo? (y/N): " UPDATE_APP

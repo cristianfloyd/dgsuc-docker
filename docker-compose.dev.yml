@@ -16,7 +16,6 @@ services:
     volumes:
       # Solo volúmenes Docker - no bind mounts de Windows
       - app_code:/var/www/html
-      - ./.env:/var/www/html/.env  # Bind mount específico para .env
       - php_sessions:/var/www/html/storage/framework/sessions
       - php_cache:/var/www/html/storage/framework/cache
       - composer_cache:/home/www-data/.composer
@@ -26,13 +25,24 @@ services:
       sh -c "
         echo 'Configuring Git safe directory...' &&
         git config --global --add safe.directory /var/www/html &&
-        if [ ! -f /var/www/html/.env ]; then
-          echo 'Creating .env file...'
-          cd /var/www/html && cp .env.example .env && php artisan key:generate
+        echo 'Checking if Laravel app exists...' &&
+        if [ -f /var/www/html/composer.json ]; then
+          echo 'Laravel app found, setting up environment...' &&
+          if [ ! -f /var/www/html/.env ] && [ -f /var/www/html/.env.example ]; then
+            echo 'Creating .env file from .env.example...' &&
+            cd /var/www/html && cp .env.example .env && php artisan key:generate
+          fi &&
+          echo 'Fixing permissions...' &&
+          chown -R www-data:www-data /var/www/html &&
+          chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+        else
+          echo 'Laravel app not found. Please clone the repository manually:' &&
+          echo '  1. docker exec -it dgsuc_app bash' &&
+          echo '  2. git clone https://github.com/cristianfloyd/dgsuc-app.git /tmp/app' &&
+          echo '  3. mv /tmp/app/* /var/www/html/ && mv /tmp/app/.* /var/www/html/ 2>/dev/null || true' &&
+          echo '  4. composer install' &&
+          echo 'Container will keep running for manual setup...'
         fi &&
-        echo 'Fixing permissions...' &&
-        chown -R www-data:www-data /var/www/html &&
-        chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache &&
         echo 'Starting PHP-FPM...' &&
         php-fpm -F
       "
