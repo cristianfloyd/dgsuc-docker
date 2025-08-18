@@ -14,10 +14,11 @@ services:
       SESSION_DRIVER: file
       QUEUE_CONNECTION: sync
     volumes:
+      # Solo volúmenes Docker - no bind mounts de Windows
       - app_code:/var/www/html
       - php_sessions:/var/www/html/storage/framework/sessions
       - php_cache:/var/www/html/storage/framework/cache
-      - ~/.composer:/home/www-data/.composer
+      - composer_cache:/home/www-data/.composer
     ports:
       - "9003:9003"  # Xdebug port
     command: >
@@ -46,8 +47,9 @@ services:
       - "8080:80"
       - "8443:443"
     volumes:
-      - app_code:/var/www/html
-      - ./docker/nginx/sites/default.conf:/etc/nginx/sites-enabled/default:ro
+      # Solo volúmenes Docker - no bind mounts de Windows
+      - app_code:/var/www/html:ro
+      - nginx_config:/etc/nginx/sites-enabled:ro
     depends_on:
       - app
 
@@ -58,10 +60,14 @@ services:
       POSTGRES_DB: dgsuc_app
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./docker/postgres/init.sql/01-create-schema.sql:/docker-entrypoint-initdb.d/01-create-schema.sql:ro
 
 volumes:
   app_code:
     driver: local
   postgres_data_dev:
+    driver: local
+  composer_cache:
+    driver: local
+  nginx_config:
     driver: local

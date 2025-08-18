@@ -1,7 +1,7 @@
 # Application
 APP_NAME="Sistema DGSUC"
-APP_ENV=production
-APP_KEY=base64:YOUR_APP_KEY_HERE
+APP_ENV=development
+APP_KEY=
 APP_DEBUG=false
 APP_URL=https://dgsuc.uba.ar
 

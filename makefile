@@ -1,5 +1,5 @@
 ﻿# DGSUC Docker Management
-.PHONY: help dev prod build up down restart logs shell test backup restore clean dev-windows-optimized
+.PHONY: help dev prod build up down restart logs shell test backup restore clean dev-windows-optimized sync-windows sync-windows-app sync-windows-file
 
 # Default environment
 ENV ?= development
@@ -176,6 +176,15 @@ db-fresh: ## Fresh database with seeds
 db-test: ## Test database connection
 	@echo "Testing database connection..."
 	$(COMPOSE_DEV) exec app php artisan db:show
+
+db-create-schema: ## Create PostgreSQL schema 'suc_app'
+	@echo "Creating PostgreSQL schema 'suc_app'..."
+	$(COMPOSE_DEV) exec postgres psql -U dgsuc_user -d dgsuc_app -c "CREATE SCHEMA IF NOT EXISTS suc_app;"
+	@echo "Schema 'suc_app' created successfully"
+
+db-verify-schema: ## Verify PostgreSQL schema 'suc_app' exists
+	@echo "Verifying PostgreSQL schema 'suc_app'..."
+	$(COMPOSE_DEV) exec postgres psql -U dgsuc_user -d dgsuc_app -c "SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'suc_app';"
 
 db-backup: ## Backup database
 	./scripts/backup.sh database
@@ -694,8 +703,8 @@ dev-windows-optimized: ## Iniciar entorno de desarrollo (Windows WSL optimizado 
 	fi; \
 	echo ""
 
-dev-windows: ## Iniciar entorno de desarrollo (Windows optimizado con volumen Docker y nginx)
-	@echo "🚀 Iniciando entorno de desarrollo con volumen Docker (optimizado para Windows)..."
+dev-windows: ## Iniciar entorno de desarrollo (Windows con SOLO volúmenes Docker)
+	@echo "🚀 Iniciando entorno de desarrollo con SOLO volúmenes Docker (optimizado para Windows)..."
 	@if [ ! -f ".env.secrets" ]; then \
 		echo "📋 Copiando .env.secrets desde .env.secrets.example..."; \
 		cp .env.secrets.example .env.secrets; \
@@ -703,14 +712,22 @@ dev-windows: ## Iniciar entorno de desarrollo (Windows optimizado con volumen Do
 	fi
 	@echo "🏗️  Construyendo servicios..."
 	BUILD_TARGET=development $(COMPOSE_DEV) build
+	@echo "📋 Sincronizando código inicial a volúmenes..."
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		powershell -ExecutionPolicy Bypass -File "./scripts/sync-to-volumes-windows.ps1" -Action sync-all; \
+	else \
+		./scripts/sync-to-volumes.sh sync-all; \
+	fi
 	@echo "🚀 Iniciando servicios (app, nginx, postgres)..."
-	BUILD_TARGET=development $(COMPOSE_DEV) --profile development up -d
+	BUILD_TARGET=development $(COMPOSE_DEV) up -d
 	@echo "⏳ Esperando que los contenedores estén listos..."
-	@sleep 10
-	@echo "✅ Entorno de desarrollo iniciado con volumen Docker y nginx."
+	@sleep 15
+	@echo "🔑 Generando clave de aplicación..."
+	@$(COMPOSE_DEV) exec app php artisan key:generate --force || true
+	@echo "✅ Entorno de desarrollo iniciado con SOLO volúmenes Docker."
 	@echo "📍 URL de la aplicación: http://localhost:8080"
 	@echo "🗄️  Base de datos: localhost:7432"
-	@echo "💡 Para sincronizar cambios: make sync-to-volume"
+	@echo "💡 Para sincronizar cambios: make sync-windows"
 	@echo "📋 Para ver logs: make dev-logs"
 
 dev-simple: ## Inicio simple del entorno de desarrollo (multiplataforma)
@@ -755,6 +772,37 @@ ssl-test-domain: ## Test SSL for specific domain
 	@read -p "Enter domain to test: " domain; \
 	curl -s -o /dev/null -w "SSL Test for $$domain: %{http_code}\n" https://$$domain
 
+# Windows Volume Sync Commands
+sync-windows: ## Sincronizar código completo a volúmenes Docker (Windows)
+	@echo "🔄 Sincronizando código a volúmenes Docker..."
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		powershell -ExecutionPolicy Bypass -File "./scripts/sync-to-volumes-windows.ps1" -Action sync-all; \
+	else \
+		echo "❌ Este comando es específico para Windows"; \
+		echo "💡 Use: make sync-to-volume"; \
+	fi
+
+sync-windows-app: ## Sincronizar solo código de aplicación (Windows)
+	@echo "🔄 Sincronizando código de aplicación..."
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		powershell -ExecutionPolicy Bypass -File "./scripts/sync-to-volumes-windows.ps1" -Action sync-app; \
+	else \
+		echo "❌ Este comando es específico para Windows"; \
+	fi
+
+sync-windows-file: ## Sincronizar archivo específico (Windows) - Usage: make sync-windows-file file=path/to/file
+	@echo "🔄 Sincronizando archivo: $(file)"
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		if [ -z "$(file)" ]; then \
+			echo "❌ Error: Debe especificar file=ruta/del/archivo"; \
+			echo "💡 Ejemplo: make sync-windows-file file=app/config/app.php"; \
+		else \
+			powershell -ExecutionPolicy Bypass -File "./scripts/sync-to-volumes-windows.ps1" -Action sync-file -Path "$(file)"; \
+		fi \
+	else \
+		echo "❌ Este comando es específico para Windows"; \
+	fi
+
 # Troubleshooting Commands
 setup-env: ## Configurar entorno básico (crear archivos .env)
 	@echo "🔧 Configurando entorno básico..."
@@ -771,3 +819,13 @@ fix-init: ## Solucionar errores de inicialización
 	else \
 		./scripts/fix-init-errors.sh; \
 	fi
+
+fix-schema: ## Crear esquema PostgreSQL y ejecutar migraciones
+	@echo "🔧 Solucionando problema de esquema PostgreSQL..."
+	@echo "Creando esquema 'suc_app'..."
+	$(COMPOSE_DEV) exec postgres psql -U dgsuc_user -d dgsuc_app -c "CREATE SCHEMA IF NOT EXISTS suc_app;"
+	@echo "Verificando esquema..."
+	$(COMPOSE_DEV) exec postgres psql -U dgsuc_user -d dgsuc_app -c "SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'suc_app';"
+	@echo "Ejecutando migraciones de Laravel..."
+	$(COMPOSE_DEV) exec app php artisan migrate --force
+	@echo "✅ Problema de esquema solucionado"

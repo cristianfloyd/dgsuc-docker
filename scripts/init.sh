@@ -528,6 +528,21 @@ if [[ ! $INIT_DB =~ ^[Nn]$ ]]; then
     # Esperar un poco más para que la base esté completamente inicializada
     sleep 5
     
+    # Crear el esquema suc_app si no existe
+    log_step "Creando esquema 'suc_app' en PostgreSQL..."
+    if docker-compose exec -T postgres psql -U dgsuc_user -d dgsuc_app -c "CREATE SCHEMA IF NOT EXISTS suc_app;" > /dev/null 2>&1; then
+        log_info "Esquema 'suc_app' creado exitosamente"
+    else
+        log_warn "No se pudo crear el esquema 'suc_app' automáticamente"
+    fi
+    
+    # Verificar que el esquema existe
+    if docker-compose exec -T postgres psql -U dgsuc_user -d dgsuc_app -c "SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'suc_app';" | grep -q "suc_app"; then
+        log_info "Esquema 'suc_app' verificado correctamente"
+    else
+        log_warn "El esquema 'suc_app' no se encuentra. Se creará manualmente más tarde."
+    fi
+    
     # La base de datos se inicializa automáticamente a través del script init.sql
     # Solo verificamos que esté accesible
     if docker-compose exec -T postgres psql -U dgsuc_user -d dgsuc_app -c "SELECT 1;" > /dev/null 2>&1; then
