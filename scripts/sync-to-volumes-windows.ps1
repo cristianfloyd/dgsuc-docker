@@ -100,9 +100,9 @@ function Sync-NginxConfig {
             return $false
         }
         
-        # Copiar configuración de Nginx
-        Write-Status "Copiando configuración de Nginx..."
-        docker cp "docker/nginx/sites/." "${tempContainer}:/sync/"
+        # Copiar configuración de Nginx para desarrollo
+        Write-Status "Copiando configuración de Nginx para desarrollo..."
+        docker cp "docker/nginx/sites/development.conf" "${tempContainer}:/sync/default.conf"
         
         if ($LASTEXITCODE -eq 0) {
             Write-Success "Configuración de Nginx sincronizada"

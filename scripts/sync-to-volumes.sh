@@ -94,9 +94,9 @@ function sync_nginx_config() {
     }
     trap cleanup EXIT
     
-    # Copiar configuración de Nginx
-    log_status "Copiando configuración de Nginx..."
-    if docker cp "docker/nginx/sites/." "${temp_container}:/sync/" >/dev/null 2>&1; then
+    # Copiar configuración de Nginx para desarrollo
+    log_status "Copiando configuración de Nginx para desarrollo..."
+    if docker cp "docker/nginx/sites/development.conf" "${temp_container}:/sync/default.conf" >/dev/null 2>&1; then
         log_success "Configuración de Nginx sincronizada"
         return 0
     else

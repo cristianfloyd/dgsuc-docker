@@ -25,10 +25,6 @@ services:
       sh -c "
         echo 'Configuring Git safe directory...' &&
         git config --global --add safe.directory /var/www/html &&
-        if [ ! -d vendor ] || [ ! -f vendor/autoload.php ]; then
-          echo 'Installing Composer dependencies...'
-          cd /var/www/html && composer install --no-interaction --prefer-dist
-        fi &&
         if [ ! -f /var/www/html/.env ]; then
           echo 'Creating .env file...'
           cd /var/www/html && cp .env.example .env && php artisan key:generate

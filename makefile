@@ -719,11 +719,9 @@ dev-windows: ## Iniciar entorno de desarrollo (Windows con SOLO volúmenes Docke
 		./scripts/sync-to-volumes.sh sync-all; \
 	fi
 	@echo "🚀 Iniciando servicios (app, nginx, postgres)..."
-	BUILD_TARGET=development $(COMPOSE_DEV) up -d
+	BUILD_TARGET=development $(COMPOSE_DEV) --profile development up -d
 	@echo "⏳ Esperando que los contenedores estén listos..."
 	@sleep 15
-	@echo "🔑 Generando clave de aplicación..."
-	@$(COMPOSE_DEV) exec app php artisan key:generate --force || true
 	@echo "✅ Entorno de desarrollo iniciado con SOLO volúmenes Docker."
 	@echo "📍 URL de la aplicación: http://localhost:8080"
 	@echo "🗄️  Base de datos: localhost:7432"
