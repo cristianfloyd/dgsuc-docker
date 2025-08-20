@@ -3,6 +3,7 @@ x-common-variables: &common-variables
   APP_NAME: ${APP_NAME:-Sistema DGSUC}
   APP_ENV: ${APP_ENV:-production}
   APP_DEBUG: ${APP_DEBUG:-false}
+  APP_KEY: ${APP_KEY}
   APP_URL: ${APP_URL:-https://dgsuc.uba.ar}
   LOG_CHANNEL: ${LOG_CHANNEL:-stack}
   LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -47,8 +48,8 @@ services:
       - .env
       - .env.secrets  # Cargar variables sensibles
     build:
-      context: ./docker/app
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./docker/app/Dockerfile
       target: ${BUILD_TARGET:-production}
     container_name: dgsuc_app
     restart: unless-stopped

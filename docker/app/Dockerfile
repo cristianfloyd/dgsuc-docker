@@ -43,6 +43,8 @@ RUN docker-php-ext-configure gd \
 RUN pecl install redis && \
     docker-php-ext-enable redis
 
+# Note: openssl, ctype, json, and mbstring are built-in since PHP 8.0+
+
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
@@ -56,20 +58,20 @@ FROM base AS production
 RUN apk add --no-cache nodejs npm
 
 # Copy PHP configuration
-COPY php.ini /usr/local/etc/php/conf.d/app.ini
+COPY ./docker/app/php.ini /usr/local/etc/php/conf.d/app.ini
 
 # Set working directory
 WORKDIR /var/www/html
 
 # Copy application files
-COPY --chown=www-data:www-data . .
+COPY --chown=www-data:www-data ./app/ .
 
 # Install PHP dependencies (production only)
 RUN composer install --no-dev --no-interaction --no-progress --optimize-autoloader && \
     composer clear-cache
 
 # Install Node.js dependencies and build assets
-RUN npm ci --only=production && \
+RUN npm ci && \
     npm run build && \
     npm cache clean --force && \
     rm -rf node_modules
@@ -87,7 +89,7 @@ RUN chown -R www-data:www-data /var/www/html && \
     chmod -R 775 /var/www/html/bootstrap/cache
 
 # Copy entrypoint
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY ./docker/app/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 USER www-data
@@ -99,7 +101,7 @@ CMD ["php-fpm"]
 FROM base AS development
 
 # Copy PHP development configuration
-COPY php-dev.ini /usr/local/etc/php/conf.d/app.ini
+COPY ./docker/app/php-dev.ini /usr/local/etc/php/conf.d/app.ini
 
 # Install development tools
 RUN apk add --no-cache \
@@ -120,7 +122,7 @@ RUN mkdir -p storage/logs storage/framework/{cache,sessions,views} bootstrap/cac
     chown -R www-data:www-data storage bootstrap/cache
 
 # Add permission fix script for development
-COPY fix-permissions.sh /usr/local/bin/fix-permissions.sh
+COPY ./docker/app/fix-permissions.sh /usr/local/bin/fix-permissions.sh
 # RUN chmod +x /usr/local/bin/fix-permissions.sh
 
 # Keep container running in dev
