@@ -57,13 +57,46 @@ services:
       <<: *common-variables
       DOCKER_ENV: ${APP_ENV}
       CONTAINER_NAME: dgsuc_app
+      # Database principal (interna)
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_DATABASE: ${DB_DATABASE:-dgsuc_app}
-      DB_USERNAME: ${DB_USERNAME:-dgsuc_user}
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_DATABASE:-suc_app}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-1234}
       DB_SCHEMA: suc_app
+      
+      # Database externa DB2 (otra aplicación)
+      # Usando el mismo PostgreSQL del contenedor temporalmente
+      DB2_CONNECTION: ${DB2_CONNECTION:-pgsql}
+      DB2_HOST: ${DB2_HOST:-postgres}
+      DB2_PORT: ${DB2_PORT:-5432}
+      DB2_DATABASE: ${DB2_DATABASE:-liqui}
+      DB2_USERNAME: ${DB2_USERNAME:-dgsuc_user}
+      DB2_PASSWORD: ${DB2_PASSWORD:-dgsuc_password_2024}
+      
+      # Database externa DB3 (otra aplicación)
+      # Usando el mismo PostgreSQL del contenedor temporalmente
+      DB3_CONNECTION: ${DB3_CONNECTION:-pgsql}
+      DB3_HOST: ${DB3_HOST:-postgres}
+      DB3_PORT: ${DB3_PORT:-5432}
+      DB3_DATABASE: ${DB3_DATABASE:-liqui}
+      DB3_USERNAME: ${DB3_USERNAME:-dgsuc_user}
+      DB3_PASSWORD: ${DB3_PASSWORD:-dgsuc_password_2024}
+      
+      # Variables para otras conexiones Laravel (PROD, TEST, etc.)
+      # Usando el mismo PostgreSQL del contenedor
+      DB_PROD_HOST: ${DB_PROD_HOST:-postgres}
+      DB_PROD_PORT: ${DB_PROD_PORT:-5432}
+      DB_PROD_DATABASE: ${DB_PROD_DATABASE:-mapuche}
+      DB_PROD_USERNAME: ${DB_PROD_USERNAME:-dgsuc_user}
+      DB_PROD_PASSWORD: ${DB_PROD_PASSWORD:-dgsuc_password_2024}
+      
+      DB_TEST_HOST: ${DB_TEST_HOST:-postgres}
+      DB_TEST_PORT: ${DB_TEST_PORT:-5432}
+      DB_TEST_DATABASE: ${DB_TEST_DATABASE:-sicoss_test}
+      DB_TEST_USERNAME: ${DB_TEST_USERNAME:-dgsuc_user}
+      DB_TEST_PASSWORD: ${DB_TEST_PASSWORD:-dgsuc_password_2024}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       CACHE_DRIVER: redis
@@ -109,26 +142,27 @@ services:
       - production
       - development
 
-  # PostgreSQL Database
+  # PostgreSQL Database Principal (solo DB interna)
   postgres:
     image: postgres:17-alpine
     container_name: dgsuc_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_DATABASE:-dgsuc_app}
-      POSTGRES_USER: ${DB_USERNAME:-dgsuc_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE:-suc_app}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-1234}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=es_AR.UTF-8"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql/01-create-schema.sql:/docker-entrypoint-initdb.d/01-create-schema.sql:ro
+      - ./docker/postgres/init-db.sh:/docker-entrypoint-initdb.d/02-configure-auth.sh:ro
       - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     networks:
       - dgsuc_network
     ports:
       - "${DB_EXTERNAL_PORT:-7432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-dgsuc_user}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -143,6 +177,10 @@ services:
       -c wal_buffers=64MB
       -c log_statement=mod
       -c log_min_duration_statement=1000
+    profiles:
+      - production
+      - development
+
 
   # Redis Cache
   redis:

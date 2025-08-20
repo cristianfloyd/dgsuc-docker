@@ -51,12 +51,50 @@ make dev
 - **Formato**: `base64:...`
 - **Generación**: `make app-key` o `openssl rand -base64 32`
 
-### 🗄️ Base de Datos
+### 🗄️ Bases de Datos
+
+#### Database Principal (Interna)
 ```env
-DB_DATABASE=dgsuc_app
-DB_USERNAME=dgsuc_user
+DB_DATABASE=suc_app
+DB_USERNAME=postgres
 DB_PASSWORD=tu_password_segura  # ⚠️ Cambiar siempre
 ```
+
+#### Databases Externas (Otras Aplicaciones)
+```env
+# DB2 - Externa (otra aplicación)
+DB2_CONNECTION=pgsql
+DB2_HOST=host.docker.internal  # Para acceder al host desde contenedor
+DB2_PORT=5432
+DB2_DATABASE=liqui
+DB2_USERNAME=postgres
+DB2_PASSWORD=1234  # ⚠️ Ajustar según tu configuración
+
+# DB3 - Externa (otra aplicación)
+DB3_CONNECTION=pgsql
+DB3_HOST=host.docker.internal
+DB3_PORT=5433
+DB3_DATABASE=liqui
+DB3_USERNAME=postgres
+DB3_PASSWORD=1234  # ⚠️ Ajustar según tu configuración
+```
+
+**Notas importantes sobre bases externas:**
+- 🔗 `host.docker.internal` permite al contenedor acceder al host
+- 🔧 Ajusta las credenciales según tus bases de datos externas reales
+- 🛡️ Asegúrate de que las bases externas permitan conexiones desde Docker
+
+## 🔧 Configuración Automática
+
+### Usuario y Permisos
+- El contenedor se configura automáticamente con UID/GID 1000
+- Los permisos se corrigen automáticamente en cada inicio
+- Compatible con bind mounts en Linux y volúmenes en Windows
+
+### PostgreSQL
+- La autenticación se configura automáticamente como `md5` para compatibilidad con Laravel
+- Las bases de datos múltiples se crean automáticamente
+- No requiere configuración manual
 
 ### 🚀 Aplicación
 ```env
@@ -103,6 +141,36 @@ make restart
 ```bash
 # Corregir permisos
 make fix-permissions
+```
+
+### 4. Conexiones a bases de datos externas fallan
+
+#### Desde el contenedor Laravel:
+```bash
+# Entrar al contenedor
+make dev-shell
+
+# Probar conexión a DB2
+pg_isready -h host.docker.internal -p 5432 -U postgres
+
+# Probar conexión a DB3
+pg_isready -h host.docker.internal -p 5433 -U postgres
+
+# Probar desde Laravel
+php artisan tinker
+DB::connection('db2')->getPdo();
+DB::connection('db3')->getPdo();
+```
+
+#### Desde el host:
+```bash
+# Verificar que las bases externas estén corriendo
+netstat -tlnp | grep :5432
+netstat -tlnp | grep :5433
+
+# Probar conectividad directa
+psql -h localhost -p 5432 -U postgres -d liqui
+psql -h localhost -p 5433 -U postgres -d liqui
 ```
 
 ## 🌍 Configuración por Entorno

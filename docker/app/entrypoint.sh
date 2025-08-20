@@ -52,8 +52,15 @@ mkdir -p storage/framework/{sessions,views,cache}
 mkdir -p storage/logs
 mkdir -p bootstrap/cache
 
-# Set permissions
+# Set permissions and ownership
 chmod -R 775 storage bootstrap/cache
+# Ensure correct ownership (run as root first, then switch to www-data)
+if [ "$(id -u)" = "0" ]; then
+    chown -R 1000:1000 storage bootstrap/cache
+    # Create psysh config directory for tinker
+    mkdir -p /.config/psysh
+    chown -R 1000:1000 /.config
+fi
 
 echo -e "${GREEN}Application container ready!${NC}"
 

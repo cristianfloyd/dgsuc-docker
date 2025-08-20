@@ -48,8 +48,10 @@ RUN pecl install redis && \
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Use www-data user consistently
-RUN adduser -u 1000 -D -S -G www-data www-data || true
+# Create or modify www-data user to UID 1000
+RUN deluser www-data 2>/dev/null || true && \
+    addgroup -g 1000 www-data && \
+    adduser -u 1000 -D -s /bin/bash -G www-data www-data
 
 # Production build stage
 FROM base AS production
@@ -63,8 +65,8 @@ COPY ./docker/app/php.ini /usr/local/etc/php/conf.d/app.ini
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy application files
-COPY --chown=www-data:www-data ./app/ .
+# Copy application files with correct ownership
+COPY --chown=1000:1000 ./app/ .
 
 # Install PHP dependencies (production only)
 RUN composer install --no-dev --no-interaction --no-progress --optimize-autoloader && \
@@ -82,8 +84,8 @@ RUN php artisan config:cache && \
     php artisan view:cache && \
     php artisan event:cache
 
-# Set correct permissions
-RUN chown -R www-data:www-data /var/www/html && \
+# Set correct permissions for UID 1000
+RUN chown -R 1000:1000 /var/www/html && \
     chmod -R 755 /var/www/html && \
     chmod -R 775 /var/www/html/storage && \
     chmod -R 775 /var/www/html/bootstrap/cache
@@ -116,10 +118,10 @@ RUN pecl install xdebug && \
 
 WORKDIR /var/www/html
 
-# Fix storage permissions for Laravel
+# Fix storage permissions for Laravel (development)
 RUN mkdir -p storage/logs storage/framework/{cache,sessions,views} bootstrap/cache && \
     chmod -R 775 storage bootstrap/cache && \
-    chown -R www-data:www-data storage bootstrap/cache
+    chown -R 1000:1000 storage bootstrap/cache
 
 # Add permission fix script for development
 COPY ./docker/app/fix-permissions.sh /usr/local/bin/fix-permissions.sh
