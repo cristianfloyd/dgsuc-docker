@@ -77,10 +77,11 @@ dev-linux: ## Start complete development environment for Linux (bind mounts)
 	
 	@echo "🏗️  3/4: Construyendo imágenes si es necesario..."
 	@if ! docker image inspect dgsuc-docker-app:latest >/dev/null 2>&1; then \
-		echo "🔨 Construyendo imágenes..."; \
-		BUILD_TARGET=development $(COMPOSE_DEV) build; \
+		echo "🔨 Construyendo imágenes desde cero..."; \
+		BUILD_TARGET=development docker-compose -f docker-compose.yml -f docker-compose.linux.yml build --no-cache; \
 	else \
-		echo "✅ Imágenes ya construidas"; \
+		echo "🔄 Reconstruyendo imágenes para asegurar compatibilidad..."; \
+		BUILD_TARGET=development docker-compose -f docker-compose.yml -f docker-compose.linux.yml build; \
 	fi
 	
 	@echo "🚀 4/4: Iniciando servicios con bind mounts..."
@@ -529,9 +530,21 @@ stats: ## Show container resource usage
 	docker stats --no-stream
 
 clean: ## Clean everything (containers, volumes, images)
-	$(COMPOSE_DEV) down -v --remove-orphans
-	docker system prune -f
-	docker volume prune -f
+	@echo "🧹 Limpieza completa del entorno Docker..."
+	@echo "🛑 1/5: Deteniendo todos los contenedores..."
+	-docker stop $$(docker ps -q) 2>/dev/null || true
+	@echo "🗑️  2/5: Eliminando contenedores..."
+	-docker container prune -f
+	@echo "📦 3/5: Eliminando imágenes del proyecto..."
+	-docker rmi $$(docker images | grep dgsuc-docker | awk '{print $$1":"$$2}') 2>/dev/null || true
+	@echo "💾 4/5: Eliminando volúmenes..."
+	-docker volume rm $$(docker volume ls | grep dgsuc-docker | awk '{print $$2}') 2>/dev/null || true
+	-docker volume prune -f
+	@echo "🔧 5/5: Limpieza general del sistema Docker..."
+	-docker system prune -f
+	@echo ""
+	@echo "✅ Limpieza completa finalizada"
+	@echo "💡 Próximo paso: make dev-linux para reconstruir desde cero"
 
 backup-all: ## Backup completo del sistema
 	./scripts/backup.sh full

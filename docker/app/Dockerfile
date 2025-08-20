@@ -125,7 +125,7 @@ RUN mkdir -p storage/logs storage/framework/{cache,sessions,views} bootstrap/cac
 
 # Add permission fix script for development
 COPY ./docker/app/fix-permissions.sh /usr/local/bin/fix-permissions.sh
-# RUN chmod +x /usr/local/bin/fix-permissions.sh
+RUN chmod +x /usr/local/bin/fix-permissions.sh
 
 # Keep container running in dev
 CMD ["php-fpm"]

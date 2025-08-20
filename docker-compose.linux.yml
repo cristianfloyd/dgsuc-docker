@@ -52,8 +52,8 @@ services:
       - .env
       - .env.secrets
     build:
-      context: ./docker/app
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./docker/app/Dockerfile
       target: ${BUILD_TARGET:-production}
     container_name: dgsuc_app
     environment:
@@ -67,6 +67,36 @@ services:
       DB_USERNAME: ${DB_USERNAME:-dgsuc_user}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_SCHEMA: suc_app
+      
+      # Database externa DB2 (otra aplicación)
+      DB2_CONNECTION: ${DB2_CONNECTION:-pgsql}
+      DB2_HOST: ${DB2_HOST:-postgres}
+      DB2_PORT: ${DB2_PORT:-5432}
+      DB2_DATABASE: ${DB2_DATABASE:-liqui}
+      DB2_USERNAME: ${DB2_USERNAME:-dgsuc_user}
+      DB2_PASSWORD: ${DB2_PASSWORD:-dgsuc_password_2024}
+      
+      # Database externa DB3 (otra aplicación)
+      DB3_CONNECTION: ${DB3_CONNECTION:-pgsql}
+      DB3_HOST: ${DB3_HOST:-postgres}
+      DB3_PORT: ${DB3_PORT:-5432}
+      DB3_DATABASE: ${DB3_DATABASE:-liqui}
+      DB3_USERNAME: ${DB3_USERNAME:-dgsuc_user}
+      DB3_PASSWORD: ${DB3_PASSWORD:-dgsuc_password_2024}
+      
+      # Variables para otras conexiones Laravel (PROD, TEST, etc.)
+      DB_PROD_HOST: ${DB_PROD_HOST:-postgres}
+      DB_PROD_PORT: ${DB_PROD_PORT:-5432}
+      DB_PROD_DATABASE: ${DB_PROD_DATABASE:-mapuche}
+      DB_PROD_USERNAME: ${DB_PROD_USERNAME:-dgsuc_user}
+      DB_PROD_PASSWORD: ${DB_PROD_PASSWORD:-dgsuc_password_2024}
+      
+      DB_TEST_HOST: ${DB_TEST_HOST:-postgres}
+      DB_TEST_PORT: ${DB_TEST_PORT:-5432}
+      DB_TEST_DATABASE: ${DB_TEST_DATABASE:-sicoss_test}
+      DB_TEST_USERNAME: ${DB_TEST_USERNAME:-dgsuc_user}
+      DB_TEST_PASSWORD: ${DB_TEST_PASSWORD:-dgsuc_password_2024}
+      
       REDIS_HOST: redis
       REDIS_PORT: 6379
       # Configuraciones específicas para Linux
@@ -135,6 +165,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql/01-create-schema.sql:/docker-entrypoint-initdb.d/01-create-schema.sql:ro
+      - ./docker/postgres/init-db.sh:/docker-entrypoint-initdb.d/02-configure-auth.sh:ro
       - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     networks:
       - dgsuc_network
@@ -211,8 +242,8 @@ services:
   scheduler:
     <<: *restart-policy
     build:
-      context: ./docker/app
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./docker/app/Dockerfile
       target: ${BUILD_TARGET:-production}
     container_name: dgsuc_scheduler
     environment:
