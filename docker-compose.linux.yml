@@ -87,6 +87,8 @@ services:
       retries: 3
     # Usuario específico para Linux - evita problemas de permisos
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
+    profiles:
+      - development
 
   # Nginx Web Server - Configuración Linux nativa
   nginx:
@@ -115,6 +117,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    profiles:
+      - development
 
   # PostgreSQL Database - Configuración optimizada para Linux
   postgres:
@@ -153,6 +157,8 @@ services:
       -c wal_buffers=16MB
       -c log_statement=mod
       -c log_min_duration_statement=1000
+    profiles:
+      - development
 
   # Redis Cache - Configuración Linux nativa
   redis:
@@ -161,17 +167,18 @@ services:
     container_name: dgsuc_redis
     volumes:
       - redis_data:/data
-      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
     networks:
       - dgsuc_network
     ports:
       - "${REDIS_EXTERNAL_PORT:-6379}:6379"
-    command: redis-server /usr/local/etc/redis/redis.conf ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+    command: redis-server --appendonly yes
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+--auth ${REDIS_PASSWORD}} ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 3
+    profiles:
+      - development
 
   # Queue Workers - Sin supervisord, usando init nativo de Linux
   workers:
@@ -197,6 +204,8 @@ services:
         condition: service_healthy
     # Comando simplificado para Linux
     command: php /var/www/html/artisan queue:work --sleep=3 --tries=3 --max-time=3600
+    profiles:
+      - development
 
   # Scheduler - Cron nativo de Linux
   scheduler:

@@ -34,7 +34,7 @@ dev: ## Start development environment
 		cp .env.secrets.example .env.secrets; \
 		echo "✅ Archivo .env.secrets creado"; \
 	fi
-	BUILD_TARGET=development $(COMPOSE_DEV) up -d
+	BUILD_TARGET=development $(COMPOSE_DEV) --profile development up -d
 	@echo "Development environment is running at http://localhost:8080"
 
 dev-wsl: ## Start development environment for WSL
@@ -47,6 +47,16 @@ dev-wsl: ## Start development environment for WSL
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.wsl.yml up -d
 	@echo "WSL development environment is running at http://localhost:8080"
 
+dev-linux: ## Start development environment for Linux
+	@echo "Starting Linux development environment..."
+	@if [ ! -f ".env.secrets" ]; then \
+		echo "📋 Copiando .env.secrets desde .env.secrets.example..."; \
+		cp .env.secrets.example .env.secrets; \
+		echo "✅ Archivo .env.secrets creado"; \
+	fi
+	BUILD_TARGET=development docker-compose -f docker-compose.yml -f docker-compose.linux.yml --profile development up -d
+	@echo "Linux development environment is running at http://localhost:80"
+
 dev-build: ## Build development images
 	BUILD_TARGET=development $(COMPOSE_DEV) build
 
@@ -56,8 +66,17 @@ dev-logs: ## Show development logs
 dev-shell: ## Enter development app container
 	$(COMPOSE_DEV) exec app bash
 
+dev-linux-shell: ## Enter Linux development app container
+	docker-compose -f docker-compose.yml -f docker-compose.linux.yml --profile development exec app bash
+
 dev-stop: ## Stop development environment
 	$(COMPOSE_DEV) down
+
+dev-linux-stop: ## Stop Linux development environment
+	docker-compose -f docker-compose.yml -f docker-compose.linux.yml --profile development down
+
+dev-linux-logs: ## Show Linux development logs
+	docker-compose -f docker-compose.yml -f docker-compose.linux.yml --profile development logs -f
 
 dev-clean: ## Clean development environment (removes volumes)
 	$(COMPOSE_DEV) down -v
