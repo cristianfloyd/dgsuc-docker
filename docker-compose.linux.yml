@@ -128,8 +128,8 @@ services:
       dockerfile: Dockerfile
     container_name: dgsuc_nginx
     ports:
-      - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
+      - "${HTTP_PORT:-8080}:80"
+      - "${HTTPS_PORT:-8443}:443"
     volumes:
       # Bind mounts directos para mejor performance en Linux
       - ./app:/var/www/html:ro
@@ -214,6 +214,9 @@ services:
   # Queue Workers - Sin supervisord, usando init nativo de Linux
   workers:
     <<: *restart-policy
+    env_file:
+      - .env
+      - .env.secrets
     build:
       context: ./docker/workers
       dockerfile: Dockerfile
@@ -223,6 +226,15 @@ services:
       WORKER_PROCESSES: ${WORKER_PROCESSES:-2}
       WORKER_MEMORY: ${WORKER_MEMORY:-1024}
       WORKER_TIMEOUT: ${WORKER_TIMEOUT:-3600}
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-dgsuc_app}
+      DB_USERNAME: ${DB_USERNAME:-dgsuc_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SCHEMA: suc_app
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     volumes: *app-volumes
     networks:
       - dgsuc_network
