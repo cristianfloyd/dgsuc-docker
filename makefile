@@ -12,10 +12,15 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo ''
-	@echo '📚 Documentation:'
-	@echo '  📖 README.md                    - Documentación principal'
-	@echo '  🎨 docs/ASSETS_MANAGEMENT.md    - Gestión de assets'
-	@echo '  🚀 app/PRODUCTION_DEPLOYMENT_GUIDE.md - Guía de producción'
+	@echo '* Documentation:'
+	@echo '  ** README.md                    - Documentación principal'
+	@echo '  ** docs/ASSETS_MANAGEMENT.md    - Gestión de assets'
+	@echo '  ** app/PRODUCTION_DEPLOYMENT_GUIDE.md - Guía de producción'
+	@echo ''
+	@echo '* Platform-Specific Development:'
+	@echo '  ** make dev-linux       - Linux (bind mounts, mejor rendimiento)'
+	@echo '  ** make dev-windows     - Windows (volúmenes Docker, mejor compatibilidad)'
+	@echo '  ** make dev-auto        - Detección automática de plataforma'
 	@echo ''
 	@echo '🔧 Permission Commands:'
 	@echo '  check-permissions            - Check Laravel file permissions'
@@ -47,15 +52,45 @@ dev-wsl: ## Start development environment for WSL
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.wsl.yml up -d
 	@echo "WSL development environment is running at http://localhost:8080"
 
-dev-linux: ## Start development environment for Linux
-	@echo "Starting Linux development environment..."
+dev-linux: ## Start complete development environment for Linux (bind mounts)
+	@echo "🐧 Iniciando entorno completo de desarrollo para Linux (bind mounts)..."
+	
+	@echo "🔧 1/4: Verificando configuración de entorno..."
+	@if [ ! -f ".env" ]; then \
+		echo "❌ Archivo .env no encontrado. Ejecutando inicialización..."; \
+		$(MAKE) init-env-only; \
+	fi
 	@if [ ! -f ".env.secrets" ]; then \
 		echo "📋 Copiando .env.secrets desde .env.secrets.example..."; \
 		cp .env.secrets.example .env.secrets; \
 		echo "✅ Archivo .env.secrets creado"; \
 	fi
+	@$(MAKE) check-env
+	
+	@echo "📦 2/4: Verificando aplicación Laravel..."
+	@if [ ! -f "./app/composer.json" ]; then \
+		echo "❌ Aplicación Laravel no encontrada. Clonando..."; \
+		$(MAKE) clone; \
+	else \
+		echo "✅ Aplicación Laravel encontrada"; \
+	fi
+	
+	@echo "🏗️  3/4: Construyendo imágenes si es necesario..."
+	@if ! docker image inspect dgsuc-docker-app:latest >/dev/null 2>&1; then \
+		echo "🔨 Construyendo imágenes..."; \
+		BUILD_TARGET=development $(COMPOSE_DEV) build; \
+	else \
+		echo "✅ Imágenes ya construidas"; \
+	fi
+	
+	@echo "🚀 4/4: Iniciando servicios con bind mounts..."
 	BUILD_TARGET=development docker-compose -f docker-compose.yml -f docker-compose.linux.yml --profile development up -d
-	@echo "Linux development environment is running at http://localhost:80"
+	@echo ""
+	@echo "✅ Entorno Linux completo listo en http://localhost:80"
+	@echo "💡 Comandos útiles:"
+	@echo "   make dev-logs        - Ver logs"
+	@echo "   make dev-shell       - Entrar al contenedor"
+	@echo "   make db-migrate      - Ejecutar migraciones"
 
 dev-build: ## Build development images
 	BUILD_TARGET=development $(COMPOSE_DEV) build
@@ -439,6 +474,7 @@ clone: ## Clone the application repository
 init: ## Initialize the environment (configure variables and setup)
 	@echo "🚀 Initializing DGSUC Docker Environment..."
 	@echo ""
+	@./scripts/init-env.sh
 	@./scripts/init.sh
 
 update: ## Update application code
@@ -722,26 +758,46 @@ dev-windows-optimized: ## Iniciar entorno de desarrollo (Windows WSL optimizado 
 	fi; \
 	echo ""
 
-dev-windows: ## Iniciar entorno de desarrollo (Windows con SOLO volúmenes Docker)
-	@echo "🚀 Iniciando entorno de desarrollo con SOLO volúmenes Docker (optimizado para Windows)..."
+dev-windows: ## Start complete development environment for Windows (Docker volumes)
+	@echo "🪟 Iniciando entorno completo de desarrollo para Windows (volúmenes Docker)..."
+	
+	@echo "🔧 1/5: Verificando configuración de entorno..."
+	@if [ ! -f ".env" ]; then \
+		echo "❌ Archivo .env no encontrado. Ejecutando inicialización..."; \
+		$(MAKE) init-env-only; \
+	fi
 	@if [ ! -f ".env.secrets" ]; then \
 		echo "📋 Copiando .env.secrets desde .env.secrets.example..."; \
 		cp .env.secrets.example .env.secrets; \
 		echo "✅ Archivo .env.secrets creado"; \
 	fi
-	@echo "🏗️  Construyendo servicios..."
+	@$(MAKE) check-env
+	
+	@echo "📦 2/5: Verificando aplicación Laravel..."
+	@if [ ! -f "./app/composer.json" ]; then \
+		echo "❌ Aplicación Laravel no encontrada. Clonando..."; \
+		$(MAKE) clone; \
+	else \
+		echo "✅ Aplicación Laravel encontrada"; \
+	fi
+	@echo "🏗️  3/5: Construyendo servicios..."
 	BUILD_TARGET=development $(COMPOSE_DEV) build
-	@echo "📋 Sincronizando código inicial a volúmenes..."
+	@echo "📋 4/5: Sincronizando código inicial a volúmenes..."
 	@if [ "$(OS)" = "Windows_NT" ]; then \
 		powershell -ExecutionPolicy Bypass -File "./scripts/sync-to-volumes-windows.ps1" -Action sync-all; \
 	else \
 		./scripts/sync-to-volumes.sh sync-all; \
 	fi
-	@echo "🚀 Iniciando servicios (app, nginx, postgres)..."
+	@echo "🚀 5/5: Iniciando servicios (app, nginx, postgres)..."
 	BUILD_TARGET=development $(COMPOSE_DEV) --profile development up -d
 	@echo "⏳ Esperando que los contenedores estén listos..."
 	@sleep 15
-	@echo "✅ Entorno de desarrollo iniciado con SOLO volúmenes Docker."
+	@echo ""
+	@echo "✅ Entorno Windows completo listo en http://localhost:8080"
+	@echo "💡 Comandos útiles:"
+	@echo "   make dev-logs        - Ver logs"
+	@echo "   make dev-shell       - Entrar al contenedor"
+	@echo "   make sync-env        - Sincronizar cambios"
 	@echo "📍 URL de la aplicación: http://localhost:8080"
 	@echo "🗄️  Base de datos: localhost:7432"
 	@echo "💡 Para sincronizar cambios: make sync-windows"
@@ -846,3 +902,60 @@ fix-schema: ## Crear esquema PostgreSQL y ejecutar migraciones
 	@echo "Ejecutando migraciones de Laravel..."
 	$(COMPOSE_DEV) exec app php artisan migrate --force
 	@echo "✅ Problema de esquema solucionado"
+# =============================================================================
+# ENVIRONMENT SETUP COMMANDS
+# =============================================================================
+
+init-env: ## Inicializar archivo .env para nuevo entorno
+	@echo "🔧 Inicializando configuración de entorno..."
+	@./scripts/init-env.sh
+
+app-key: ## Generar nueva APP_KEY para Laravel
+	@echo "🔑 Generando nueva APP_KEY..."
+	@if [ ! -f .env ]; then echo "❌ Archivo .env no encontrado. Ejecuta 'make init-env' primero"; exit 1; fi
+	@new_key=$$(openssl rand -base64 32); \
+	 sed -i "s|^APP_KEY=.*|APP_KEY=base64:$$new_key|" .env; \
+	 echo "✅ Nueva APP_KEY generada: base64:$${new_key:0:20}..."
+
+check-env: ## Verificar configuración de entorno
+	@echo "🔍 Verificando configuración de entorno..."
+	@if [ ! -f .env ]; then echo "❌ Archivo .env no encontrado"; exit 1; fi
+	@echo "✅ Archivo .env encontrado"
+	@grep -q "^APP_KEY=base64:" .env && echo "✅ APP_KEY configurada" || echo "❌ APP_KEY no configurada"
+	@grep -q "^DB_PASSWORD=" .env && echo "✅ DB_PASSWORD configurada" || echo "❌ DB_PASSWORD no configurada"
+	@echo "📊 Variables de entorno:"
+	@grep -E "^(APP_|DB_|CACHE_|SESSION_)" .env | head -10
+
+env-status: ## Mostrar estado de variables de entorno en contenedor
+	@echo "🐳 Estado de variables en contenedor:"
+	$(COMPOSE_DEV) exec app php artisan tinker --execute="echo 'APP_ENV: ' . env('APP_ENV') . PHP_EOL; echo 'APP_DEBUG: ' . (env('APP_DEBUG') ? 'true' : 'false') . PHP_EOL; echo 'APP_KEY: ' . (env('APP_KEY') ? substr(env('APP_KEY'), 0, 20) . '...' : 'NOT_SET') . PHP_EOL;"
+
+setup: init ## Alias for complete setup (same as 'make init')
+	@echo "✅ Setup completed. Use 'make init' for full initialization."
+
+
+# =============================================================================
+# COMANDOS PARA COMPATIBILIDAD CON ANTERIORES
+# =============================================================================
+
+init-env-only: ## Solo inicializar variables de entorno (sin clone ni build)
+	@echo "Inicializando solo variables de entorno..."
+	@./scripts/init-env.sh
+
+
+# =============================================================================
+# DESARROLLO INTELIGENTE POR PLATAFORMA
+# =============================================================================
+
+dev-auto: ## Desarrollo automático (detecta Linux/Windows)
+	@echo "🔍 Detectando plataforma..."
+	@if [ "$(OS)" = "Windows_NT" ] || [ -f "/proc/version" ] && grep -q Microsoft /proc/version; then \
+		echo "🪟 Windows/WSL detectado - usando volúmenes Docker"; \
+		$(MAKE) dev-windows; \
+	else \
+		echo "🐧 Linux nativo detectado - usando bind mounts"; \
+		$(MAKE) dev-linux; \
+	fi
+
+dev-smart: dev-auto ## Alias para dev-auto
+
