@@ -1,4 +1,3 @@
-
 services:
   app:
     build:
@@ -23,27 +22,27 @@ services:
       - "9003:9003"  # Xdebug port
     command: >
       sh -c "
-        echo 'Configuring Git safe directory...' &&
+        echo 'Configurando directorio seguro de Git...' &&
         git config --global --add safe.directory /var/www/html &&
-        echo 'Checking if Laravel app exists...' &&
+        echo 'Comprobando existencia de la aplicación Laravel...' &&
         if [ -f /var/www/html/composer.json ]; then
-          echo 'Laravel app found, setting up environment...' &&
+          echo 'Aplicación Laravel encontrada, configurando entorno...' &&
           if [ ! -f /var/www/html/.env ] && [ -f /var/www/html/.env.example ]; then
-            echo 'Creating .env file from .env.example...' &&
+            echo 'Creando archivo .env desde .env.example...' &&
             cd /var/www/html && cp .env.example .env && php artisan key:generate
           fi &&
-          echo 'Fixing permissions...' &&
+          echo 'Corrigiendo permisos...' &&
           chown -R www-data:www-data /var/www/html &&
           chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
         else
-          echo 'Laravel app not found. Please clone the repository manually:' &&
+          echo 'Aplicación Laravel no encontrada. Por favor clone el repositorio manualmente:' &&
           echo '  1. docker exec -it dgsuc_app bash' &&
           echo '  2. git clone https://github.com/cristianfloyd/dgsuc-app.git /tmp/app' &&
           echo '  3. mv /tmp/app/* /var/www/html/ && mv /tmp/app/.* /var/www/html/ 2>/dev/null || true' &&
           echo '  4. composer install' &&
-          echo 'Container will keep running for manual setup...'
+          echo 'El contenedor se mantendrá en ejecución para la configuración manual...'
         fi &&
-        echo 'Starting PHP-FPM...' &&
+        echo 'Iniciando PHP-FPM...' &&
         php-fpm -F
       "
     depends_on:

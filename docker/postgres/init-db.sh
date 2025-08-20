@@ -32,4 +32,13 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     SELECT 'CREATE DATABASE liqui' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'liqui')\gexec
 EOSQL
 
+echo "🧩 Creando esquemas 'mapuche' y 'suc' en cada base de datos adicional..."
+for DB in mapuche sicoss_test liqui; do
+  echo "  -> Procesando base: $DB"
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$DB" <<-EOSQL
+    CREATE SCHEMA IF NOT EXISTS mapuche AUTHORIZATION postgres;
+    CREATE SCHEMA IF NOT EXISTS suc AUTHORIZATION postgres;
+EOSQL
+done
+
 echo "✅ Script de inicialización personalizado de PostgreSQL finalizado."
