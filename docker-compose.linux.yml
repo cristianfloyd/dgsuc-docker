@@ -196,15 +196,17 @@ services:
     <<: *restart-policy
     image: redis:7-alpine
     container_name: dgsuc_redis
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     networks:
       - dgsuc_network
     ports:
       - "${REDIS_EXTERNAL_PORT:-6379}:6379"
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass redis_dev_password_456
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli -a redis_dev_password_456 ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 3
