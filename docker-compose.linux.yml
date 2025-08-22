@@ -17,6 +17,7 @@ x-common-variables: &common-variables
   SESSION_DRIVER: ${SESSION_DRIVER:-redis}
   SESSION_LIFETIME: ${SESSION_LIFETIME:-120}
   QUEUE_CONNECTION: ${QUEUE_CONNECTION:-redis}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_dev_password_456}
 
 x-app-volumes: &app-volumes
   # Bind mounts directos - óptimos para Linux
@@ -204,9 +205,10 @@ services:
       - dgsuc_network
     ports:
       - "${REDIS_EXTERNAL_PORT:-6379}:6379"
-    command: redis-server --appendonly yes --requirepass redis_dev_password_456
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a redis_dev_password_456 ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -237,6 +239,7 @@ services:
       DB_SCHEMA: suc_app
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes: *app-volumes
     networks:
       - dgsuc_network

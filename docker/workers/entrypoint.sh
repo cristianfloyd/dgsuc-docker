@@ -30,6 +30,9 @@ until php -r "
 try {
     \$redis = new Redis();
     \$redis->connect('$REDIS_HOST', 6379);
+    if (getenv('REDIS_PASSWORD')) {
+        \$redis->auth(getenv('REDIS_PASSWORD'));
+    }
     \$redis->ping();
     exit(0);
 } catch (Exception \$e) {
