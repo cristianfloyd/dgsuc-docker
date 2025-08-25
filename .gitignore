@@ -59,4 +59,6 @@ ssh-keys/mapuchedbprod.key.pub.old
 .env.backup
 
 tmp/
+.claude/
+CLAUDE.md
 GEMINI.md
