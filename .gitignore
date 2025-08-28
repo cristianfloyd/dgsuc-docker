@@ -60,3 +60,4 @@ ssh-keys/mapuchedbprod.key.pub.old
 
 tmp/
 GEMINI.md
+.serena/project.yml
