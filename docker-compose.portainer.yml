@@ -130,19 +130,27 @@ services:
       dockerfile: Dockerfile
     container_name: dgsuc_nginx
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    # Ports handled by Traefik proxy
+    # ports:
+    #   - "80:80"
+    #   - "443:443"
     environment:
       - NGINX_HOST=${NGINX_HOST:-dgsuc.uba.ar}
     volumes:
       - ./docker/nginx/sites/default-ssl.conf:/etc/nginx/sites-enabled/default:ro
-      - ./certs:/etc/nginx/certs:ro
       - nginx_logs:/var/log/nginx
       - ./logs/nginx:/var/log/nginx
     networks:
       - dgsuc_network
       - proxy
+    
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dgsuc.rule=Host(`dgsuc.uba.ar`)"
+      - "traefik.http.routers.dgsuc.tls=true"
+      - "traefik.http.routers.dgsuc.tls.certresolver=letsencrypt"
+      - "traefik.http.services.dgsuc.loadbalancer.server.port=80"
+      - "traefik.docker.network=proxy"
     depends_on:
       - app
     deploy:
