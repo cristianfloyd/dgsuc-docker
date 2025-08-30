@@ -63,3 +63,4 @@ tmp/
 CLAUDE.md
 GEMINI.md
 .serena/project.yml
+docker-compose.portainer-example.yaml
