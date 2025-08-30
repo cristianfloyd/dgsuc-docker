@@ -1,0 +1,290 @@
+networks:
+  proxy:
+    external: true
+  dgsuc_network:
+    internal: true
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  php_sessions:
+    driver: local
+  php_cache:
+    driver: local
+  nginx_logs:
+    driver: local
+
+services:
+  # ==========================================
+  # APLICACIÓN PHP-FPM
+  # ==========================================
+  app:
+    image: dgsuc/app:production
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+      target: production
+    container_name: dgsuc_app
+    restart: unless-stopped
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - APP_KEY=${APP_KEY}
+      - APP_URL=${APP_URL:-https://dgsuc.uba.ar}
+      
+      # Database
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_SCHEMA=${DB_SCHEMA:-suc_app}
+      
+      # External Database (Mapuche via SSH Tunnel)
+      - DB2_CONNECTION=pgsql
+      - DB2_HOST=127.0.0.1
+      - DB2_PORT=5433
+      - DB2_DATABASE=${DB2_DATABASE}
+      - DB2_USERNAME=${DB2_USERNAME}
+      - DB2_PASSWORD=${DB2_PASSWORD}
+      
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PORT=6379
+      
+      # Cache and Session
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      
+      # Microsoft Azure AD
+      - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID}
+      - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET}
+      - MICROSOFT_REDIRECT_URI=${MICROSOFT_REDIRECT_URI}
+    
+    volumes:
+      - ./app:/var/www/html
+      - ./storage:/var/www/html/storage
+      - ./bootstrap/cache:/var/www/html/bootstrap/cache
+      - php_sessions:/var/www/html/storage/framework/sessions
+      - php_cache:/var/www/html/storage/framework/cache
+      - ./logs/app:/var/log/php
+    
+    networks:
+      - dgsuc_network
+    
+    depends_on:
+      - postgres
+      - redis
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+    
+    healthcheck:
+      test: ["CMD", "php", "/var/www/html/artisan", "tinker", "--execute=echo 'OK';"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ==========================================
+  # NGINX WEB SERVER
+  # ==========================================
+  nginx:
+    image: dgsuc/nginx:latest
+    build:
+      context: docker/nginx
+      dockerfile: Dockerfile
+    container_name: dgsuc_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - NGINX_HOST=${NGINX_HOST:-dgsuc.uba.ar}
+    volumes:
+      - ./app/public:/var/www/html/public:ro
+      - ./docker/nginx/sites/default-ssl.conf:/etc/nginx/sites-enabled/default:ro
+      - ./certs:/etc/nginx/certs:ro
+      - nginx_logs:/var/log/nginx
+      - ./logs/nginx:/var/log/nginx
+    networks:
+      - dgsuc_network
+      - proxy
+    depends_on:
+      - app
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================
+  # POSTGRESQL DATABASE
+  # ==========================================
+  postgres:
+    image: postgres:17-alpine
+    container_name: dgsuc_postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${DB_DATABASE}
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/postgresql-prod.conf:/etc/postgresql/postgresql.conf:ro
+      - ./docker/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - ./logs/postgres:/var/log/postgresql
+    networks:
+      - dgsuc_network
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ==========================================
+  # REDIS CACHE
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: dgsuc_redis
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+      - ./docker/redis/redis-prod.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./logs/redis:/var/log/redis
+    networks:
+      - dgsuc_network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================
+  # QUEUE WORKERS
+  # ==========================================
+  workers:
+    image: dgsuc/workers:latest
+    build:
+      context: docker/workers
+      dockerfile: Dockerfile
+    container_name: dgsuc_workers
+    restart: unless-stopped
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - DB_HOST=postgres
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - WORKER_PROCESSES=${WORKER_PROCESSES:-6}
+      - WORKER_MEMORY=${WORKER_MEMORY:-4096}
+      - WORKER_TIMEOUT=${WORKER_TIMEOUT:-3600}
+    volumes:
+      - ./app:/var/www/html
+      - ./logs/workers:/var/log/supervisor
+    networks:
+      - dgsuc_network
+    depends_on:
+      - postgres
+      - redis
+      - app
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # ==========================================
+  # SSH TUNNELS (para conexiones externas)
+  # ==========================================
+  ssh-tunnel:
+    image: jnovack/autossh:latest
+    container_name: dgsuc_ssh_tunnel
+    restart: unless-stopped
+    environment:
+      - SSH_HOSTUSER=${SSH_HOSTUSER}
+      - SSH_HOSTNAME=${SSH_HOSTNAME}
+      - SSH_HOSTPORT=${SSH_HOSTPORT:-22}
+      - SSH_TUNNEL_HOST=${SSH_TUNNEL_HOST:-127.0.0.1}
+      - SSH_TUNNEL_LOCAL=${SSH_TUNNEL_LOCAL:-5433}
+      - SSH_TUNNEL_REMOTE=${SSH_TUNNEL_REMOTE:-5432}
+      - AUTOSSH_GATETIME=0
+      - AUTOSSH_POLL=30
+      - AUTOSSH_FIRST_POLL=30
+      - AUTOSSH_LOGLEVEL=0
+    volumes:
+      - ~/.ssh:/root/.ssh:ro
+    networks:
+      - dgsuc_network
+    depends_on:
+      - postgres
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
