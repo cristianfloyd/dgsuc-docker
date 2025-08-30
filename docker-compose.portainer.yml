@@ -7,14 +7,34 @@ networks:
 volumes:
   postgres_data:
     driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc/postgres_data
   redis_data:
     driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc/redis_data
   php_sessions:
     driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc/php_sessions
   php_cache:
     driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc/php_cache
   nginx_logs:
     driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc/nginx_logs
 
 services:
   # ==========================================
