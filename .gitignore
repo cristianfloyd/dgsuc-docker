@@ -62,5 +62,5 @@ tmp/
 .claude/
 CLAUDE.md
 GEMINI.md
-.serena/project.yml
+.serena
 docker-compose.portainer-example.yaml
