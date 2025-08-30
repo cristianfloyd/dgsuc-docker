@@ -41,7 +41,7 @@ services:
   # APLICACIÓN PHP-FPM
   # ==========================================
   app:
-    image: dgsuc/app:production
+    image: registry.rec.uba.ar/dgsuc/app:production
     build:
       context: .
       dockerfile: docker/app/Dockerfile
@@ -124,7 +124,7 @@ services:
   # NGINX WEB SERVER
   # ==========================================
   nginx:
-    image: dgsuc/nginx:latest
+    image: registry.rec.uba.ar/dgsuc/nginx:latest
     build:
       context: docker/nginx
       dockerfile: Dockerfile
@@ -241,7 +241,7 @@ services:
   # QUEUE WORKERS
   # ==========================================
   workers:
-    image: dgsuc/workers:latest
+    image: registry.rec.uba.ar/dgsuc/workers:latest
     build:
       context: docker/workers
       dockerfile: Dockerfile

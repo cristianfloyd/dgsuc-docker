@@ -44,8 +44,8 @@ RUN addgroup -g 1000 -S dgsuc_user && \
     adduser -u 1000 -S dgsuc_user -G www-data
 
 # Copy supervisor configuration
-COPY worker.conf /etc/supervisor/conf.d/supervisord.conf
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY docker/workers/worker.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/workers/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Set working directory
