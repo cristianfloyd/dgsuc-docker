@@ -4,6 +4,16 @@ networks:
   dgsuc_network:
     internal: true
 
+secrets:
+  ssh_private_key_ro:
+    external: true
+  ssh_public_key_ro:
+    external: true
+  ssh_private_key_rw:
+    external: true
+  ssh_public_key_rw:
+    external: true
+
 volumes:
   postgres_data:
     driver: local
@@ -42,12 +52,7 @@ services:
   # ==========================================
   app:
     image: registry.rec.uba.ar/dgsuc/app:production
-    build:
-      context: .
-      dockerfile: docker/app/Dockerfile
-      target: production
-    container_name: dgsuc_app
-    restart: unless-stopped
+    # build options removed for Swarm mode
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_DEBUG=${APP_DEBUG:-false}
@@ -99,6 +104,10 @@ services:
       - redis
     
     deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
       resources:
         limits:
           cpus: '4'
@@ -125,11 +134,7 @@ services:
   # ==========================================
   nginx:
     image: registry.rec.uba.ar/dgsuc/nginx:latest
-    build:
-      context: docker/nginx
-      dockerfile: Dockerfile
-    container_name: dgsuc_nginx
-    restart: unless-stopped
+    # build options removed for Swarm mode
     # Ports handled by Traefik proxy
     # ports:
     #   - "80:80"
@@ -139,7 +144,6 @@ services:
     volumes:
       - ./docker/nginx/sites/default-ssl.conf:/etc/nginx/sites-enabled/default:ro
       - nginx_logs:/var/log/nginx
-      - ./logs/nginx:/var/log/nginx
     networks:
       - dgsuc_network
       - proxy
@@ -174,8 +178,7 @@ services:
   # ==========================================
   postgres:
     image: postgres:17-alpine
-    container_name: dgsuc_postgres
-    restart: unless-stopped
+    # container_name removed for Swarm mode
     environment:
       - POSTGRES_DB=${DB_DATABASE}
       - POSTGRES_USER=${DB_USERNAME}
@@ -212,8 +215,7 @@ services:
   # ==========================================
   redis:
     image: redis:7-alpine
-    container_name: dgsuc_redis
-    restart: unless-stopped
+    # container_name removed for Swarm mode
     command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
@@ -242,11 +244,7 @@ services:
   # ==========================================
   workers:
     image: registry.rec.uba.ar/dgsuc/workers:latest
-    build:
-      context: docker/workers
-      dockerfile: Dockerfile
-    container_name: dgsuc_workers
-    restart: unless-stopped
+    # build options removed for Swarm mode
     environment:
       - APP_ENV=${APP_ENV:-production}
       - DB_HOST=postgres
@@ -282,25 +280,67 @@ services:
         max-file: "10"
 
   # ==========================================
-  # SSH TUNNELS (para conexiones externas)
+  # SSH TUNNELS (múltiples conexiones en un servicio)
   # ==========================================
-  ssh-tunnel:
-    image: jnovack/autossh:latest
-    container_name: dgsuc_ssh_tunnel
-    restart: unless-stopped
+  ssh-tunnels:
+    image: registry.rec.uba.ar/dgsuc/ssh-tunnels:latest
+    # container_name removed for Swarm mode
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
     environment:
-      - SSH_HOSTUSER=${SSH_HOSTUSER}
-      - SSH_HOSTNAME=${SSH_HOSTNAME}
-      - SSH_HOSTPORT=${SSH_HOSTPORT:-22}
-      - SSH_TUNNEL_HOST=${SSH_TUNNEL_HOST:-127.0.0.1}
-      - SSH_TUNNEL_LOCAL=${SSH_TUNNEL_LOCAL:-5433}
-      - SSH_TUNNEL_REMOTE=${SSH_TUNNEL_REMOTE:-5432}
+      # Configuración general SSH
       - AUTOSSH_GATETIME=0
       - AUTOSSH_POLL=30
       - AUTOSSH_FIRST_POLL=30
       - AUTOSSH_LOGLEVEL=0
-    volumes:
-      - ~/.ssh:/root/.ssh:ro
+      
+      # Túnel 1: DB Producción (puerto 5434) - Solo lectura
+      - SSH_HOST_DBPROD=${SSH_HOST_DBPROD:-dbprod.uba.ar}
+      - SSH_USER_DBPROD=${SSH_USER_DBPROD:-dgsuc_app_ro}
+      - SSH_PORT_DBPROD=${SSH_PORT_DBPROD:-22}
+      - LOCAL_PORT_DBPROD=5434
+      - REMOTE_PORT_DBPROD=5432
+      - SSH_KEY_DBPROD=ro
+      
+      # Túnel 2: DB Producción R2 (puerto 5436) - Lectura/escritura
+      - SSH_HOST_DBPRODR2=${SSH_HOST_DBPRODR2:-dbprodr2.uba.ar}
+      - SSH_USER_DBPRODR2=${SSH_USER_DBPRODR2:-dgsuc_app_rw}
+      - SSH_PORT_DBPRODR2=${SSH_PORT_DBPRODR2:-22}
+      - LOCAL_PORT_DBPRODR2=5436
+      - REMOTE_PORT_DBPRODR2=5432
+      - SSH_KEY_DBPRODR2=rw
+      
+      # Túnel 3: DB Test (puerto 5433) - Solo lectura  
+      - SSH_HOST_DBTEST=${SSH_HOST_DBTEST:-dbtest.uba.ar}
+      - SSH_USER_DBTEST=${SSH_USER_DBTEST:-dgsuc_app_ro}
+      - SSH_PORT_DBTEST=${SSH_PORT_DBTEST:-22}
+      - LOCAL_PORT_DBTEST=5433
+      - REMOTE_PORT_DBTEST=5432
+      - SSH_KEY_DBTEST=ro
+      
+      # Túnel 4: DB Test R2 (puerto 5435) - Lectura/escritura
+      - SSH_HOST_DBTESTR2=${SSH_HOST_DBTESTR2:-dbtestr2.uba.ar}
+      - SSH_USER_DBTESTR2=${SSH_USER_DBTESTR2:-dgsuc_app_rw}
+      - SSH_PORT_DBTESTR2=${SSH_PORT_DBTESTR2:-22}
+      - LOCAL_PORT_DBTESTR2=5435
+      - REMOTE_PORT_DBTESTR2=5432
+      - SSH_KEY_DBTESTR2=rw
+    secrets:
+      - source: ssh_private_key_ro
+        target: /run/secrets/ssh_private_key_ro
+        mode: 0600
+      - source: ssh_public_key_ro
+        target: /run/secrets/ssh_public_key_ro
+        mode: 0644
+      - source: ssh_private_key_rw
+        target: /run/secrets/ssh_private_key_rw
+        mode: 0600
+      - source: ssh_public_key_rw
+        target: /run/secrets/ssh_public_key_rw
+        mode: 0644
     networks:
       - dgsuc_network
     depends_on:
