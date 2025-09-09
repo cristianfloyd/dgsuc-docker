@@ -12,21 +12,62 @@ Utilizar el archivo principal para Portainer:
 Archivo docker-compose: docker-compose.portainer.yml
 ```
 
+**⚠️ IMPORTANTE**: Esta configuración utiliza **volúmenes NFS** para todos los datos persistentes, incluyendo logs. No se requieren directorios locales tipo `./logs/app` ya que todo se almacena en el servidor NFS de UBA.
+
 ### 1.2 Utilizar archivo .env para Portainer
 
 ```bash
 Archivo: .env.portainer
 ```
 
+### 1.3 Cambios Importantes en la Configuración (2024-2025)
+
+#### Volúmenes NFS para Logs
+Los siguientes volúmenes fueron migrados de bind mounts locales a volúmenes NFS:
+
+- `app_logs` → `/var/swarm_volumes/volumes/dgsuc/app_logs` (logs PHP)
+- `postgres_logs` → `/var/swarm_volumes/volumes/dgsuc/postgres_logs` 
+- `redis_logs` → `/var/swarm_volumes/volumes/dgsuc/redis_logs`
+- `workers_logs` → `/var/swarm_volumes/volumes/dgsuc/workers_logs`
+
+**Antes (problemático en Portainer):**
+```yaml
+volumes:
+  - ./logs/app:/var/log/php
+```
+
+**Ahora (compatible con Portainer NFS):**
+```yaml
+volumes:
+  - app_logs:/var/log/php
+```
+
+#### Nueva Arquitectura SSH Tunnels
+Los túneles SSH fueron migrados de un servicio único a **4 servicios independientes**:
+
+- `ssh-tunnel-dbprod` (puerto 5434, clave RO)
+- `ssh-tunnel-dbprodr2` (puerto 5436, clave RW) 
+- `ssh-tunnel-dbtest` (puerto 5433, clave RO)
+- `ssh-tunnel-dbtestr2` (puerto 5435, clave RW)
+
+**Razón del cambio:** La imagen `jnovack/autossh:latest` solo soporta un túnel por contenedor y las variables de entorno fueron actualizadas.
+
 ## 🎯 Paso 2: Preparar Directorios y Permisos
 
 ### 2.1 Crear Estructura de Directorios
 
+**⚠️ ACTUALIZACIÓN 2025**: Con la migración a volúmenes NFS, **NO es necesario crear directorios locales** para logs. Los únicos directorios requeridos son para archivos de configuración:
+
 ```bash
-# Crear directorios necesarios para la aplicación
-sudo mkdir -p /opt/dgsuc/{data,logs,config}
-sudo mkdir -p /opt/dgsuc/data/{postgres,redis}
-sudo mkdir -p /opt/dgsuc/logs/{nginx,app,postgres,redis,workers}
+# SOLO crear directorios para configuración local
+sudo mkdir -p /opt/dgsuc/config
+sudo mkdir -p /opt/dgsuc/docker/{nginx,postgres}
+
+# Los logs ahora se almacenan automáticamente en NFS:
+# - app_logs → pum1f3.rec.uba.ar:/var/swarm_volumes/volumes/dgsuc/app_logs
+# - postgres_logs → pum1f3.rec.uba.ar:/var/swarm_volumes/volumes/dgsuc/postgres_logs  
+# - redis_logs → pum1f3.rec.uba.ar:/var/swarm_volumes/volumes/dgsuc/redis_logs
+# - workers_logs → pum1f3.rec.uba.ar:/var/swarm_volumes/volumes/dgsuc/workers_logs
 ```
 
 ## Paso 3: Despliegue en Portainer
@@ -245,17 +286,65 @@ supervisorctl restart all
 supervisorctl status
 ```
 
+### Problema: Túneles SSH no conectan
+
+**Síntomas**: 
+- Error: `[FATAL] No SSH Key file found`
+- Error: Variables deprecadas en logs
+- Bases de datos externas no accesibles
+
+**Solución**:
+1. **Verificar secrets en Portainer**:
+   - Ir a **Secrets** → Verificar que existan:
+     - `ssh_private_key_ro`
+     - `ssh_public_key_ro` 
+     - `ssh_private_key_rw`
+     - `ssh_public_key_rw`
+
+2. **Verificar servicios SSH**:
+   ```bash
+   # En Portainer Console de cada túnel
+   docker logs ssh-tunnel-dbprod
+   docker logs ssh-tunnel-dbtest
+   docker logs ssh-tunnel-dbprodr2
+   docker logs ssh-tunnel-dbtestr2
+   ```
+
+3. **Verificar conectividad SSH**:
+   ```bash
+   # Desde cualquier contenedor SSH tunnel
+   ssh -i /run/secrets/ssh_private_key_ro dgsuc_app_ro@dbprod.uba.ar
+   ```
+
+**Arquitectura actual**: 4 servicios independientes (uno por túnel) usando imagen `jnovack/autossh:latest`.
+
 ## 📋 Checklist Final
 
-- [ ] Todos los contenedores están **Running**
+### ✅ Servicios Principales
+- [ ] **app** (dgsuc_app) está **Running**
+- [ ] **nginx** (dgsuc_nginx) está **Running** 
+- [ ] **postgres** (dgsuc_postgres) está **Running**
+- [ ] **redis** (dgsuc_redis) está **Running**
+- [ ] **workers** (dgsuc_workers) está **Running**
+
+### ✅ Túneles SSH (4 servicios independientes)
+- [ ] **ssh-tunnel-dbprod** está **Running** (puerto 5434)
+- [ ] **ssh-tunnel-dbprodr2** está **Running** (puerto 5436)
+- [ ] **ssh-tunnel-dbtest** está **Running** (puerto 5433) 
+- [ ] **ssh-tunnel-dbtestr2** está **Running** (puerto 5435)
+
+### ✅ Funcionalidades
 - [ ] Health checks pasan correctamente
 - [ ] SSL funciona (certificado global UBA configurado)
-- [ ] Base de datos conecta correctamente
+- [ ] Base de datos interna conecta correctamente
 - [ ] Redis funciona
 - [ ] Workers procesan jobs
-- [ ] SSH tunnels conectan
-- [ ] Logs funcionan correctamente
-- [ ] Logs se escriben correctamente
+- [ ] SSH tunnels conectan a bases externas
+- [ ] **Logs NFS** se escriben correctamente:
+  - [ ] `app_logs` → `/var/log/php`
+  - [ ] `postgres_logs` → `/var/log/postgresql`
+  - [ ] `redis_logs` → `/var/log/redis`
+  - [ ] `workers_logs` → `/var/log/supervisor`
 - [ ] Backups funcionan
 - [ ] Performance es aceptable
 

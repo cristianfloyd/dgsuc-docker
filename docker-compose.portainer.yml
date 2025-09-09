@@ -45,6 +45,30 @@ volumes:
       type: nfs
       o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
       device: :/var/swarm_volumes/volumes/dgsuc/nginx_logs
+  app_logs:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc/app_logs
+  postgres_logs:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc/postgres_logs
+  redis_logs:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc/redis_logs
+  workers_logs:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc/workers_logs
 
 services:
   # ==========================================
@@ -94,7 +118,7 @@ services:
     volumes:
       - php_sessions:/var/www/html/storage/framework/sessions
       - php_cache:/var/www/html/storage/framework/cache
-      - ./logs/app:/var/log/php
+      - app_logs:/var/log/php
     
     networks:
       - dgsuc_network
@@ -188,7 +212,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/postgresql-prod.conf:/etc/postgresql/postgresql.conf:ro
       - ./docker/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
-      - ./logs/postgres:/var/log/postgresql
+      - postgres_logs:/var/log/postgresql
     networks:
       - dgsuc_network
     deploy:
@@ -220,7 +244,7 @@ services:
     volumes:
       - redis_data:/data
       - ./docker/redis/redis-prod.conf:/usr/local/etc/redis/redis.conf:ro
-      - ./logs/redis:/var/log/redis
+      - redis_logs:/var/log/redis
     networks:
       - dgsuc_network
     deploy:
@@ -257,7 +281,7 @@ services:
       - WORKER_MEMORY=${WORKER_MEMORY:-4096}
       - WORKER_TIMEOUT=${WORKER_TIMEOUT:-3600}
     volumes:
-      - ./logs/workers:/var/log/supervisor
+      - workers_logs:/var/log/supervisor
     networks:
       - dgsuc_network
     depends_on:
@@ -280,71 +304,115 @@ services:
         max-file: "10"
 
   # ==========================================
-  # SSH TUNNELS (múltiples conexiones en un servicio)
+  # SSH TUNNELS (servicios separados para cada túnel)
   # ==========================================
-  ssh-tunnels:
-    image: registry.rec.uba.ar/dgsuc/ssh-tunnels:latest
-    # container_name removed for Swarm mode
+  
+  # Túnel 1: DB Producción (puerto 5434) - Solo lectura
+  ssh-tunnel-dbprod:
+    image: jnovack/autossh:latest
     deploy:
       replicas: 1
       restart_policy:
         condition: on-failure
         max_attempts: 3
     environment:
-      # Configuración general SSH
-      - AUTOSSH_GATETIME=0
-      - AUTOSSH_POLL=30
-      - AUTOSSH_FIRST_POLL=30
-      - AUTOSSH_LOGLEVEL=0
-      
-      # Túnel 1: DB Producción (puerto 5434) - Solo lectura
-      - SSH_HOST_DBPROD=${SSH_HOST_DBPROD:-dbprod.uba.ar}
-      - SSH_USER_DBPROD=${SSH_USER_DBPROD:-dgsuc_app_ro}
-      - SSH_PORT_DBPROD=${SSH_PORT_DBPROD:-22}
-      - LOCAL_PORT_DBPROD=5434
-      - REMOTE_PORT_DBPROD=5432
-      - SSH_KEY_DBPROD=ro
-      
-      # Túnel 2: DB Producción R2 (puerto 5436) - Lectura/escritura
-      - SSH_HOST_DBPRODR2=${SSH_HOST_DBPRODR2:-dbprodr2.uba.ar}
-      - SSH_USER_DBPRODR2=${SSH_USER_DBPRODR2:-dgsuc_app_rw}
-      - SSH_PORT_DBPRODR2=${SSH_PORT_DBPRODR2:-22}
-      - LOCAL_PORT_DBPRODR2=5436
-      - REMOTE_PORT_DBPRODR2=5432
-      - SSH_KEY_DBPRODR2=rw
-      
-      # Túnel 3: DB Test (puerto 5433) - Solo lectura  
-      - SSH_HOST_DBTEST=${SSH_HOST_DBTEST:-dbtest.uba.ar}
-      - SSH_USER_DBTEST=${SSH_USER_DBTEST:-dgsuc_app_ro}
-      - SSH_PORT_DBTEST=${SSH_PORT_DBTEST:-22}
-      - LOCAL_PORT_DBTEST=5433
-      - REMOTE_PORT_DBTEST=5432
-      - SSH_KEY_DBTEST=ro
-      
-      # Túnel 4: DB Test R2 (puerto 5435) - Lectura/escritura
-      - SSH_HOST_DBTESTR2=${SSH_HOST_DBTESTR2:-dbtestr2.uba.ar}
-      - SSH_USER_DBTESTR2=${SSH_USER_DBTESTR2:-dgsuc_app_rw}
-      - SSH_PORT_DBTESTR2=${SSH_PORT_DBTESTR2:-22}
-      - LOCAL_PORT_DBTESTR2=5435
-      - REMOTE_PORT_DBTESTR2=5432
-      - SSH_KEY_DBTESTR2=rw
+      - SSH_REMOTE_HOST=${SSH_HOST_DBPROD:-dbprod.uba.ar}
+      - SSH_REMOTE_USER=${SSH_USER_DBPROD:-dgsuc_app_ro}
+      - SSH_REMOTE_PORT=${SSH_PORT_DBPROD:-22}
+      - SSH_TARGET_HOST=127.0.0.1
+      - SSH_TARGET_PORT=5432
+      - SSH_TUNNEL_PORT=5434
+      - SSH_KEY_FILE=/run/secrets/ssh_private_key_ro
     secrets:
       - source: ssh_private_key_ro
         target: /run/secrets/ssh_private_key_ro
         mode: 0600
-      - source: ssh_public_key_ro
-        target: /run/secrets/ssh_public_key_ro
-        mode: 0644
+    networks:
+      - dgsuc_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Túnel 2: DB Producción R2 (puerto 5436) - Lectura/escritura
+  ssh-tunnel-dbprodr2:
+    image: jnovack/autossh:latest
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    environment:
+      - SSH_REMOTE_HOST=${SSH_HOST_DBPRODR2:-dbprodr2.uba.ar}
+      - SSH_REMOTE_USER=${SSH_USER_DBPRODR2:-dgsuc_app_rw}
+      - SSH_REMOTE_PORT=${SSH_PORT_DBPRODR2:-22}
+      - SSH_TARGET_HOST=127.0.0.1
+      - SSH_TARGET_PORT=5432
+      - SSH_TUNNEL_PORT=5436
+      - SSH_KEY_FILE=/run/secrets/ssh_private_key_rw
+    secrets:
       - source: ssh_private_key_rw
         target: /run/secrets/ssh_private_key_rw
         mode: 0600
-      - source: ssh_public_key_rw
-        target: /run/secrets/ssh_public_key_rw
-        mode: 0644
     networks:
       - dgsuc_network
-    depends_on:
-      - postgres
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Túnel 3: DB Test (puerto 5433) - Solo lectura
+  ssh-tunnel-dbtest:
+    image: jnovack/autossh:latest
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    environment:
+      - SSH_REMOTE_HOST=${SSH_HOST_DBTEST:-dbtest.uba.ar}
+      - SSH_REMOTE_USER=${SSH_USER_DBTEST:-dgsuc_app_ro}
+      - SSH_REMOTE_PORT=${SSH_PORT_DBTEST:-22}
+      - SSH_TARGET_HOST=127.0.0.1
+      - SSH_TARGET_PORT=5432
+      - SSH_TUNNEL_PORT=5433
+      - SSH_KEY_FILE=/run/secrets/ssh_private_key_ro
+    secrets:
+      - source: ssh_private_key_ro
+        target: /run/secrets/ssh_private_key_ro
+        mode: 0600
+    networks:
+      - dgsuc_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Túnel 4: DB Test R2 (puerto 5435) - Lectura/escritura
+  ssh-tunnel-dbtestr2:
+    image: jnovack/autossh:latest
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    environment:
+      - SSH_REMOTE_HOST=${SSH_HOST_DBTESTR2:-dbtestr2.uba.ar}
+      - SSH_REMOTE_USER=${SSH_USER_DBTESTR2:-dgsuc_app_rw}
+      - SSH_REMOTE_PORT=${SSH_PORT_DBTESTR2:-22}
+      - SSH_TARGET_HOST=127.0.0.1
+      - SSH_TARGET_PORT=5432
+      - SSH_TUNNEL_PORT=5435
+      - SSH_KEY_FILE=/run/secrets/ssh_private_key_rw
+    secrets:
+      - source: ssh_private_key_rw
+        target: /run/secrets/ssh_private_key_rw
+        mode: 0600
+    networks:
+      - dgsuc_network
     logging:
       driver: "json-file"
       options:
