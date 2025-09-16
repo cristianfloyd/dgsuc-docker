@@ -198,10 +198,10 @@ services:
       retries: 3
 
   # ==========================================
-  # POSTGRESQL DATABASE
+  # POSTGRESQL DATABASE (Imagen personalizada)
   # ==========================================
   postgres:
-    image: postgres:17-alpine
+    image: registry.rec.uba.ar/dgsuc/postgres:production
     # container_name removed for Swarm mode
     environment:
       - POSTGRES_DB=${DB_DATABASE}
@@ -210,8 +210,6 @@ services:
       - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/postgresql-prod.conf:/etc/postgresql/postgresql.conf:ro
-      - ./docker/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
       - postgres_logs:/var/log/postgresql
     networks:
       - dgsuc_network
