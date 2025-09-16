@@ -233,15 +233,14 @@ services:
       retries: 5
 
   # ==========================================
-  # REDIS CACHE
+  # REDIS CACHE (Imagen personalizada)
   # ==========================================
   redis:
-    image: redis:7-alpine
+    image: registry.rec.uba.ar/dgsuc/redis:production
     # container_name removed for Swarm mode
     command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
-      - ./docker/redis/redis-prod.conf:/usr/local/etc/redis/redis.conf:ro
       - redis_logs:/var/log/redis
     networks:
       - dgsuc_network
