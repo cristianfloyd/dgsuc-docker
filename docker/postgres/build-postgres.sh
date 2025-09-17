@@ -13,6 +13,7 @@ IMAGE_NAME="dgsuc/postgres"
 TAG="production"
 FULL_IMAGE_NAME="${REGISTRY}/${IMAGE_NAME}:${TAG}"
 
+
 # Cambiar al directorio correcto
 cd "$(dirname "$0")"
 
