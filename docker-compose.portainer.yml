@@ -167,24 +167,27 @@ services:
     environment:
       - NGINX_HOST=${NGINX_HOST:-dgsuc.uba.ar}
     volumes:
-      - ./docker/nginx/sites/default-ssl.conf:/etc/nginx/sites-enabled/default:ro
+      - ./docker/nginx/sites/default-http.conf:/etc/nginx/sites-enabled/default:ro
       - nginx_logs:/var/log/nginx
     networks:
       - dgsuc_network
       - proxy
-    
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.dgsuc.rule=Host(`dgsuc.uba.ar`)"
-      - "traefik.http.routers.dgsuc.tls=true"
-      - "traefik.http.routers.dgsuc.tls.certresolver=letsencrypt"
-      - "traefik.http.services.dgsuc.loadbalancer.server.port=80"
-      - "traefik.docker.network=proxy"
+
     depends_on:
       - app
     deploy:
       mode: replicated
       replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=proxy"
+        - "traefik.http.routers.dgsuc.rule=Host(`${NGINX_HOST:-dgsuc.uba.ar}`)"
+        - "traefik.http.routers.dgsuc.entrypoints=websecure"
+        - "traefik.http.routers.dgsuc.tls=true"
+        - "traefik.http.routers.dgsuc.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.dgsuc.service=dgsuc"
+        - "traefik.http.services.dgsuc.loadbalancer.server.port=80"
+        - "traefik.http.services.dgsuc.loadbalancer.server.scheme=http"
       resources:
         limits:
           cpus: '2'
