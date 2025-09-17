@@ -1,0 +1,145 @@
+networks:
+  proxy:
+    external: true
+  dgsuc_network:
+    internal: true
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc-simple/postgres_data
+  php_sessions:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc-simple/php_sessions
+  php_cache:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc-simple/php_cache
+  nginx_logs:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc-simple/nginx_logs
+  app_logs:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: nfsvers=4,addr=pum1f3.rec.uba.ar,nolock,soft,rw
+      device: :/var/swarm_volumes/volumes/dgsuc-simple/app_logs
+
+services:
+  # ==========================================
+  # APLICACIÓN LARAVEL CON NGINX
+  # ==========================================
+  app:
+    image: registry.rec.uba.ar/dgsuc/app-simple:production
+    environment:
+      - APP_NAME=${APP_NAME:-Sistema DGSUC}
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - APP_KEY=${APP_KEY}
+      - APP_URL=${APP_URL:-https://dgsuc-simple.rec.uba.ar}
+      - LOG_CHANNEL=${LOG_CHANNEL:-stack}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+
+      # Database
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-suc_app}
+      - DB_USERNAME=${DB_USERNAME:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_SCHEMA=suc_app
+
+      # Cache (usando file para simplicidad)
+      - CACHE_DRIVER=file
+      - SESSION_DRIVER=file
+      - QUEUE_CONNECTION=sync
+    volumes:
+      - php_sessions:/var/www/html/storage/framework/sessions
+      - php_cache:/var/www/html/storage/framework/cache
+      - nginx_logs:/var/log/nginx
+      - app_logs:/var/log/php
+    networks:
+      - dgsuc_network
+      - proxy
+    depends_on:
+      - postgres
+    deploy:
+      mode: replicated
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=proxy"
+        - "traefik.http.routers.dgsuc-simple.rule=Host(`${NGINX_HOST:-dgsuc-simple.rec.uba.ar}`)"
+        - "traefik.http.routers.dgsuc-simple.entrypoints=websecure"
+        - "traefik.http.routers.dgsuc-simple.tls=true"
+        - "traefik.http.routers.dgsuc-simple.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.dgsuc-simple.service=dgsuc-simple"
+        - "traefik.http.services.dgsuc-simple.loadbalancer.server.port=80"
+        - "traefik.http.services.dgsuc-simple.loadbalancer.server.scheme=http"
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ==========================================
+  # POSTGRESQL DATABASE
+  # ==========================================
+  postgres:
+    image: registry.rec.uba.ar/dgsuc/postgres:production
+    environment:
+      - POSTGRES_DB=${DB_DATABASE:-suc_app}
+      - POSTGRES_USER=${DB_USERNAME:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dgsuc_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-suc_app}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
